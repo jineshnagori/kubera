@@ -37,6 +37,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	autoscalingv1alpha1 "github.com/jineshnagori/kubera/api/v1alpha1"
+	"github.com/jineshnagori/kubera/internal/metrics"
+	"github.com/jineshnagori/kubera/internal/recommender"
 )
 
 const defaultPollingInterval = 30 * time.Second
@@ -44,8 +46,10 @@ const defaultPollingInterval = 30 * time.Second
 // DynamicResourceReconciler reconciles a DynamicResource object
 type DynamicResourceReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Recorder events.EventRecorder
+	Scheme      *runtime.Scheme
+	Recorder    events.EventRecorder
+	Metrics     metrics.Provider
+	Recommender *recommender.Recommender
 }
 
 // +kubebuilder:rbac:groups=autoscaling.kubera.io,resources=dynamicresources,verbs=get;list;watch;create;update;patch;delete
@@ -56,6 +60,7 @@ type DynamicResourceReconciler struct {
 // +kubebuilder:rbac:groups="",resources=pods/resize,verbs=patch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list
 
 // Reconcile resolves the selector to Deployments in the same namespace,
 // detects conflicts with other DynamicResources, and publishes the result in
@@ -102,13 +107,33 @@ func (r *DynamicResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return r.patchStatus(ctx, orig, &dr, ctrl.Result{RequeueAfter: r.pollingInterval(&dr)})
 	}
 
+	if m := dr.Spec.Metrics; m != nil && m.Provider == autoscalingv1alpha1.MetricsProviderPrometheus {
+		r.setCondition(&dr, autoscalingv1alpha1.ConditionReady, metav1.ConditionFalse, "UnsupportedProvider",
+			"Prometheus metrics provider is not implemented yet; use MetricsServer")
+		return r.patchStatus(ctx, orig, &dr, ctrl.Result{})
+	}
+
+	recs, err := r.computeRecommendations(ctx, &dr, matched)
+	if err != nil {
+		r.setCondition(&dr, autoscalingv1alpha1.ConditionReady, metav1.ConditionFalse, "MetricsUnavailable", err.Error())
+		if _, patchErr := r.patchStatus(ctx, orig, &dr, ctrl.Result{}); patchErr != nil {
+			return ctrl.Result{}, patchErr
+		}
+		return ctrl.Result{}, err
+	}
+	if !equality.Semantic.DeepEqual(dr.Status.Recommendations, recs) {
+		dr.Status.Recommendations = recs
+		r.Recorder.Eventf(&dr, nil, "Normal", "RecommendationUpdated", "Reconcile",
+			"updated recommendations for %d workload(s)", len(recs))
+	}
+
 	r.setCondition(&dr, autoscalingv1alpha1.ConditionReady, metav1.ConditionTrue, "Reconciled",
 		fmt.Sprintf("managing %d workload(s)", len(matched)))
 	if dr.Status.HPAState == "" {
 		dr.Status.HPAState = autoscalingv1alpha1.HPAStateIdle
 	}
 
-	log.V(1).Info("reconciled", "matched", len(matched), "updateMode", dr.Spec.UpdateMode)
+	log.V(1).Info("reconciled", "matched", len(matched), "recommendations", len(recs), "updateMode", dr.Spec.UpdateMode)
 	return r.patchStatus(ctx, orig, &dr, ctrl.Result{RequeueAfter: r.pollingInterval(&dr)})
 }
 

@@ -35,8 +35,12 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
+
 	autoscalingv1alpha1 "github.com/jineshnagori/kubera/api/v1alpha1"
 	"github.com/jineshnagori/kubera/internal/controller"
+	kuberametrics "github.com/jineshnagori/kubera/internal/metrics"
+	"github.com/jineshnagori/kubera/internal/recommender"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -178,10 +182,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	metricsClientset, err := metricsclient.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "unable to create metrics client")
+		os.Exit(1)
+	}
+
 	if err := (&controller.DynamicResourceReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorder("kubera"),
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		Recorder:    mgr.GetEventRecorder("kubera"),
+		Metrics:     kuberametrics.NewMetricsServerProvider(metricsClientset),
+		Recommender: recommender.New(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "dynamicresource")
 		os.Exit(1)

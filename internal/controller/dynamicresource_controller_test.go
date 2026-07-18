@@ -32,6 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	autoscalingv1alpha1 "github.com/jineshnagori/kubera/api/v1alpha1"
+	"github.com/jineshnagori/kubera/internal/metrics"
+	"github.com/jineshnagori/kubera/internal/recommender"
 )
 
 const (
@@ -39,11 +41,15 @@ const (
 	appAPI      = "api"
 )
 
+var fakeMetrics = metrics.NewFakeProvider()
+
 func newReconciler() *DynamicResourceReconciler {
 	return &DynamicResourceReconciler{
-		Client:   k8sClient,
-		Scheme:   k8sClient.Scheme(),
-		Recorder: events.NewFakeRecorder(16),
+		Client:      k8sClient,
+		Scheme:      k8sClient.Scheme(),
+		Recorder:    events.NewFakeRecorder(16),
+		Metrics:     fakeMetrics,
+		Recommender: recommender.New(),
 	}
 }
 
@@ -194,6 +200,121 @@ var _ = Describe("DynamicResource Controller", func() {
 		Expect(ready).NotTo(BeNil())
 		Expect(ready.Status).To(Equal(metav1.ConditionFalse))
 		Expect(ready.Reason).To(Equal("InvalidBounds"))
+	})
+
+	It("publishes clamped recommendations from usage samples", func() {
+		labels := map[string]string{appLabelKey: appAPI}
+		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+		Expect(k8sClient.Create(ctx, newDynamicResource("api-policy", namespace, labels))).To(Succeed())
+
+		now := metav1.Now().Time
+		fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+			Pod: "api-abc", Timestamp: now,
+			Containers: []metrics.ContainerUsage{{
+				Container: appAPI,
+				CPU:       resource.MustParse("120m"),
+				Memory:    resource.MustParse("400Mi"),
+			}},
+		})
+		DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+		dr := reconcileOnce(ctx, "api-policy", namespace)
+
+		Expect(dr.Status.Recommendations).To(HaveLen(1))
+		Expect(dr.Status.Recommendations[0].Workload).To(Equal(appAPI))
+		Expect(dr.Status.Recommendations[0].Containers).To(HaveLen(1))
+		target := dr.Status.Recommendations[0].Containers[0].Target
+
+		// ~120m * 1.10 margin, one 5% bucket up, rounded to 10m: within [130m, 160m].
+		cpu := target[corev1.ResourceCPU]
+		Expect(cpu.MilliValue()).To(BeNumerically(">=", 130))
+		Expect(cpu.MilliValue()).To(BeNumerically("<=", 160))
+		// Memory clamped: bounds max is 1Gi, raw ~400Mi*1.10 stays below.
+		mem := target[corev1.ResourceMemory]
+		Expect(mem.Value()).To(BeNumerically(">=", 400*1024*1024))
+		Expect(mem.Value()).To(BeNumerically("<=", 1024*1024*1024))
+	})
+
+	It("clamps recommendations to configured max", func() {
+		labels := map[string]string{appLabelKey: "hungry"}
+		Expect(k8sClient.Create(ctx, newDeployment("hungry", namespace, labels))).To(Succeed())
+		Expect(k8sClient.Create(ctx, newDynamicResource("hungry-policy", namespace, labels))).To(Succeed())
+
+		fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+			Pod: "hungry-abc", Timestamp: metav1.Now().Time,
+			Containers: []metrics.ContainerUsage{{
+				Container: appAPI,
+				CPU:       resource.MustParse("5000m"), // way above max 1000m
+				Memory:    resource.MustParse("8Gi"),   // way above max 1Gi
+			}},
+		})
+		DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+		dr := reconcileOnce(ctx, "hungry-policy", namespace)
+
+		target := dr.Status.Recommendations[0].Containers[0].Target
+		cpu := target[corev1.ResourceCPU]
+		mem := target[corev1.ResourceMemory]
+		Expect(cpu.MilliValue()).To(Equal(int64(1000)))
+		Expect(mem.Value()).To(Equal(int64(1024 * 1024 * 1024)))
+	})
+
+	It("skips containers with an Off override", func() {
+		labels := map[string]string{appLabelKey: appAPI}
+		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+		dr := newDynamicResource("api-policy", namespace, labels)
+		dr.Spec.ContainerOverrides = []autoscalingv1alpha1.ContainerOverride{{
+			ContainerName: "istio-proxy",
+			Mode:          autoscalingv1alpha1.ContainerModeOff,
+		}}
+		Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+		fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+			Pod: "api-abc", Timestamp: metav1.Now().Time,
+			Containers: []metrics.ContainerUsage{
+				{Container: appAPI, CPU: resource.MustParse("120m"), Memory: resource.MustParse("400Mi")},
+				{Container: "istio-proxy", CPU: resource.MustParse("50m"), Memory: resource.MustParse("64Mi")},
+			},
+		})
+		DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+		got := reconcileOnce(ctx, "api-policy", namespace)
+
+		Expect(got.Status.Recommendations[0].Containers).To(HaveLen(1))
+		Expect(got.Status.Recommendations[0].Containers[0].ContainerName).To(Equal(appAPI))
+	})
+
+	It("reports MetricsUnavailable when the provider fails", func() {
+		labels := map[string]string{appLabelKey: appAPI}
+		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+		Expect(k8sClient.Create(ctx, newDynamicResource("api-policy", namespace, labels))).To(Succeed())
+
+		fakeMetrics.SetError(fmt.Errorf("metrics-server down"))
+		DeferCleanup(func() { fakeMetrics.SetError(nil) })
+
+		nn := types.NamespacedName{Name: "api-policy", Namespace: namespace}
+		_, err := newReconciler().Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).To(HaveOccurred())
+
+		var got autoscalingv1alpha1.DynamicResource
+		Expect(k8sClient.Get(ctx, nn, &got)).To(Succeed())
+		ready := meta.FindStatusCondition(got.Status.Conditions, autoscalingv1alpha1.ConditionReady)
+		Expect(ready.Reason).To(Equal("MetricsUnavailable"))
+	})
+
+	It("rejects the Prometheus provider until implemented", func() {
+		labels := map[string]string{appLabelKey: appAPI}
+		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+		dr := newDynamicResource("api-policy", namespace, labels)
+		dr.Spec.Metrics = &autoscalingv1alpha1.MetricsConfig{
+			Provider: autoscalingv1alpha1.MetricsProviderPrometheus,
+		}
+		Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+		got := reconcileOnce(ctx, "api-policy", namespace)
+		ready := meta.FindStatusCondition(got.Status.Conditions, autoscalingv1alpha1.ConditionReady)
+		Expect(ready.Status).To(Equal(metav1.ConditionFalse))
+		Expect(ready.Reason).To(Equal("UnsupportedProvider"))
 	})
 
 	It("maps a Deployment event to the DynamicResources selecting it", func() {
