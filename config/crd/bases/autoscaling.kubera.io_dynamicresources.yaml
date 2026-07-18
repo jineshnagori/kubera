@@ -1,0 +1,540 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: dynamicresources.autoscaling.kubera.io
+spec:
+  group: autoscaling.kubera.io
+  names:
+    kind: DynamicResource
+    listKind: DynamicResourceList
+    plural: dynamicresources
+    shortNames:
+    - dr
+    - dynres
+    singular: dynamicresource
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.updateMode
+      name: Mode
+      type: string
+    - jsonPath: .status.hpaState
+      name: HPA State
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DynamicResource is the Schema for the dynamicresources API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of DynamicResource
+            properties:
+              behavior:
+                description: behavior shapes resize step sizes, stabilization windows
+                  and cooldowns.
+                properties:
+                  scaleDown:
+                    description: ScalingPolicy shapes resize behaviour in one direction.
+                    properties:
+                      cooldown:
+                        description: |-
+                          cooldown is the minimum time between consecutive resizes in this
+                          direction.
+                        type: string
+                      maxStepPercent:
+                        description: |-
+                          maxStepPercent caps how much a single resize may change a resource,
+                          as a percentage of its current value.
+                        format: int32
+                        maximum: 100
+                        minimum: 1
+                        type: integer
+                      stabilizationWindow:
+                        description: |-
+                          stabilizationWindow is the lookback window over which recommendations
+                          are aggregated (peak-over-window for scale down) before acting.
+                        type: string
+                    type: object
+                  scaleUp:
+                    description: ScalingPolicy shapes resize behaviour in one direction.
+                    properties:
+                      cooldown:
+                        description: |-
+                          cooldown is the minimum time between consecutive resizes in this
+                          direction.
+                        type: string
+                      maxStepPercent:
+                        description: |-
+                          maxStepPercent caps how much a single resize may change a resource,
+                          as a percentage of its current value.
+                        format: int32
+                        maximum: 100
+                        minimum: 1
+                        type: integer
+                      stabilizationWindow:
+                        description: |-
+                          stabilizationWindow is the lookback window over which recommendations
+                          are aggregated (peak-over-window for scale down) before acting.
+                        type: string
+                    type: object
+                type: object
+              containerOverrides:
+                description: containerOverrides customizes or disables management
+                  per container.
+                items:
+                  description: ContainerOverride customizes or disables management
+                    for one container.
+                  properties:
+                    containerName:
+                      description: containerName is the name of the container this
+                        override applies to.
+                      minLength: 1
+                      type: string
+                    cpu:
+                      description: cpu overrides the spec-level CPU bounds for this
+                        container.
+                      properties:
+                        max:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: |-
+                            max is the ceiling KubeRA will never size above. Reaching max makes the
+                            workload eligible for HPA takeover (hpaState: AtMaxVertical).
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        min:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: min is the floor KubeRA will never size below.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                      required:
+                      - max
+                      - min
+                      type: object
+                    memory:
+                      description: memory overrides the spec-level Memory bounds for
+                        this container.
+                      properties:
+                        max:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: |-
+                            max is the ceiling KubeRA will never size above. Reaching max makes the
+                            workload eligible for HPA takeover (hpaState: AtMaxVertical).
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        min:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: min is the floor KubeRA will never size below.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                      required:
+                      - max
+                      - min
+                      type: object
+                    mode:
+                      default: Auto
+                      description: mode disables management of this container when
+                        set to Off.
+                      enum:
+                      - Auto
+                      - "Off"
+                      type: string
+                  required:
+                  - containerName
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - containerName
+                x-kubernetes-list-type: map
+              hpa:
+                description: hpa configures coordination with an HPA targeting the
+                  same workload.
+                properties:
+                  cooldownAfterHPA:
+                    default: 10m
+                    description: |-
+                      cooldownAfterHPA is how long to wait after the HPA's last scale event
+                      before resuming vertical optimization.
+                    type: string
+                  mode:
+                    default: Cooperative
+                    description: mode selects Cooperative (coupled-loop aware) or
+                      Ignore.
+                    enum:
+                    - Cooperative
+                    - Ignore
+                    type: string
+                  pauseWhileHPAScaling:
+                    default: true
+                    description: |-
+                      pauseWhileHPAScaling pauses all resizes while the HPA is actively
+                      scaling replicas.
+                    type: boolean
+                  reserveHeadroomPercent:
+                    default: 10
+                    description: |-
+                      reserveHeadroomPercent keeps post-resize utilization at least this far
+                      below the HPA target so a downward resize never re-triggers HPA.
+                    format: int32
+                    maximum: 50
+                    minimum: 0
+                    type: integer
+                type: object
+              metrics:
+                description: metrics configures the utilization metrics source and
+                  sampling.
+                properties:
+                  cpuPercentile:
+                    default: 90
+                    description: cpuPercentile is the histogram percentile used for
+                      CPU recommendations.
+                    format: int32
+                    maximum: 100
+                    minimum: 50
+                    type: integer
+                  memoryPercentile:
+                    default: 95
+                    description: |-
+                      memoryPercentile is the histogram percentile used for Memory
+                      recommendations.
+                    format: int32
+                    maximum: 100
+                    minimum: 50
+                    type: integer
+                  pollingInterval:
+                    default: 30s
+                    description: pollingInterval is how often utilization samples
+                      are collected.
+                    type: string
+                  prometheusURL:
+                    description: |-
+                      prometheusURL is the base URL of the Prometheus API. Required when
+                      provider is Prometheus.
+                    type: string
+                  provider:
+                    default: MetricsServer
+                    description: provider is the metrics source.
+                    enum:
+                    - MetricsServer
+                    - Prometheus
+                    type: string
+                type: object
+              resources:
+                description: |-
+                  resources bounds CPU and Memory for all containers of the matched
+                  workloads.
+                properties:
+                  controlledValues:
+                    default: RequestsAndLimits
+                    description: |-
+                      controlledValues selects whether KubeRA manages requests and limits or
+                      requests only (limits left untouched).
+                    enum:
+                    - RequestsAndLimits
+                    - RequestsOnly
+                    type: string
+                  cpu:
+                    description: cpu bounds CPU requests (and limits, per controlledValues).
+                    properties:
+                      max:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: |-
+                          max is the ceiling KubeRA will never size above. Reaching max makes the
+                          workload eligible for HPA takeover (hpaState: AtMaxVertical).
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      min:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: min is the floor KubeRA will never size below.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    required:
+                    - max
+                    - min
+                    type: object
+                  memory:
+                    description: memory bounds Memory requests (and limits, per controlledValues).
+                    properties:
+                      max:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: |-
+                          max is the ceiling KubeRA will never size above. Reaching max makes the
+                          workload eligible for HPA takeover (hpaState: AtMaxVertical).
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      min:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: min is the floor KubeRA will never size below.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    required:
+                    - max
+                    - min
+                    type: object
+                required:
+                - cpu
+                - memory
+                type: object
+              selector:
+                description: |-
+                  selector matches Deployments in the same namespace by their labels.
+                  Selectors never cross namespace boundaries. Use a label unique to one
+                  Deployment to target a single workload.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: |-
+                        A label selector requirement is a selector that contains values, a key, and an operator that
+                        relates the key and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: |-
+                            operator represents a key's relationship to a set of values.
+                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                          type: string
+                        values:
+                          description: |-
+                            values is an array of string values. If the operator is In or NotIn,
+                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                            the values array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
+              updateMode:
+                default: "Off"
+                description: |-
+                  updateMode controls whether recommendations are applied or only
+                  published in status.
+                enum:
+                - "Off"
+                - InPlaceOnly
+                - InPlaceOrRecreate
+                type: string
+            required:
+            - resources
+            - selector
+            type: object
+          status:
+            description: status defines the observed state of DynamicResource
+            properties:
+              conditions:
+                description: |-
+                  conditions represent the current state of the DynamicResource resource.
+
+                  Condition types used by the controller:
+                  - "Ready": the selector resolved and the controller is operating
+                  - "Conflicted": another DynamicResource or a VPA already manages a
+                    matched workload; this object takes no action
+                  - "ResizeInfeasible": the last resize could not fit on the node
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              hpaState:
+                description: hpaState is the current coordination state with HPA.
+                type: string
+              lastResizeTime:
+                description: lastResizeTime is when KubeRA last actuated a resize.
+                format: date-time
+                type: string
+              matchedWorkloads:
+                description: matchedWorkloads are the workloads resolved from the
+                  selector.
+                items:
+                  description: WorkloadReference identifies a workload resolved from
+                    the selector.
+                  properties:
+                    kind:
+                      type: string
+                    name:
+                      type: string
+                  required:
+                  - kind
+                  - name
+                  type: object
+                type: array
+              observedGeneration:
+                description: |-
+                  observedGeneration is the spec generation last processed by the
+                  controller.
+                format: int64
+                type: integer
+              recommendations:
+                description: recommendations are published even in Off (recommend-only)
+                  mode.
+                items:
+                  description: WorkloadRecommendation groups container recommendations
+                    per workload.
+                  properties:
+                    containers:
+                      items:
+                        description: |-
+                          ContainerRecommendation is the recommended and currently applied resources
+                          for one container.
+                        properties:
+                          applied:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: applied is what KubeRA last actuated on the
+                              running Pods.
+                            type: object
+                          containerName:
+                            type: string
+                          target:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: target is the recommended resource values
+                              (requests).
+                            type: object
+                        required:
+                        - containerName
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - containerName
+                      x-kubernetes-list-type: map
+                    workload:
+                      description: workload is the name of the matched workload.
+                      type: string
+                  required:
+                  - workload
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - workload
+                x-kubernetes-list-type: map
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

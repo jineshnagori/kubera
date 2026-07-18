@@ -1,0 +1,50 @@
+apiVersion: autoscaling.kubera.io/v1alpha1
+kind: DynamicResource
+metadata:
+  labels:
+    app.kubernetes.io/name: kubera
+    app.kubernetes.io/managed-by: kustomize
+  name: dynamicresource-sample
+spec:
+  selector:
+    matchLabels:
+      app: api
+
+  # Off = recommend-only: recommendations are published in status,
+  # Pods are never touched. Switch to InPlaceOnly once trusted.
+  updateMode: "Off"
+
+  resources:
+    cpu:
+      min: 250m
+      max: 2000m
+    memory:
+      min: 256Mi
+      max: 4Gi
+    controlledValues: RequestsAndLimits
+
+  containerOverrides:
+  - containerName: istio-proxy
+    mode: "Off"
+
+  metrics:
+    provider: MetricsServer
+    pollingInterval: 30s
+    cpuPercentile: 90
+    memoryPercentile: 95
+
+  behavior:
+    scaleUp:
+      stabilizationWindow: 1m
+      maxStepPercent: 50
+      cooldown: 2m
+    scaleDown:
+      stabilizationWindow: 10m
+      maxStepPercent: 20
+      cooldown: 10m
+
+  hpa:
+    mode: Cooperative
+    reserveHeadroomPercent: 10
+    pauseWhileHPAScaling: true
+    cooldownAfterHPA: 10m
