@@ -35,9 +35,11 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	"k8s.io/client-go/discovery"
 	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	autoscalingv1alpha1 "github.com/jineshnagori/kubera/api/v1alpha1"
+	"github.com/jineshnagori/kubera/internal/actuator"
 	"github.com/jineshnagori/kubera/internal/controller"
 	kuberametrics "github.com/jineshnagori/kubera/internal/metrics"
 	"github.com/jineshnagori/kubera/internal/recommender"
@@ -188,12 +190,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "unable to create discovery client")
+		os.Exit(1)
+	}
+	resizeSupported, err := actuator.DetectInPlaceResize(discoveryClient)
+	if err != nil {
+		setupLog.Error(err, "unable to detect in-place resize support; actuation disabled")
+		resizeSupported = false
+	}
+	setupLog.Info("in-place pod resize support", "supported", resizeSupported)
+
 	if err := (&controller.DynamicResourceReconciler{
-		Client:      mgr.GetClient(),
-		Scheme:      mgr.GetScheme(),
-		Recorder:    mgr.GetEventRecorder("kubera"),
-		Metrics:     kuberametrics.NewMetricsServerProvider(metricsClientset),
-		Recommender: recommender.New(),
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		Recorder:        mgr.GetEventRecorder("kubera"),
+		Metrics:         kuberametrics.NewMetricsServerProvider(metricsClientset),
+		Recommender:     recommender.New(),
+		Resizer:         &actuator.Resizer{Client: mgr.GetClient()},
+		Cooldowns:       actuator.NewCooldownTracker(),
+		ResizeSupported: resizeSupported,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "dynamicresource")
 		os.Exit(1)
