@@ -32,24 +32,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	autoscalingv1alpha1 "github.com/jineshnagori/kubera/api/v1alpha1"
+	"github.com/jineshnagori/kubera/internal/actuator"
 	"github.com/jineshnagori/kubera/internal/metrics"
 	"github.com/jineshnagori/kubera/internal/recommender"
 )
 
 const (
-	appLabelKey = "app"
-	appAPI      = "api"
+	appLabelKey   = "app"
+	appAPI        = "api"
+	apiPolicyName = "api-policy"
+	apiPodName    = "api-pod-1"
 )
 
 var fakeMetrics = metrics.NewFakeProvider()
 
 func newReconciler() *DynamicResourceReconciler {
 	return &DynamicResourceReconciler{
-		Client:      k8sClient,
-		Scheme:      k8sClient.Scheme(),
-		Recorder:    events.NewFakeRecorder(16),
-		Metrics:     fakeMetrics,
-		Recommender: recommender.New(),
+		Client:          k8sClient,
+		Scheme:          k8sClient.Scheme(),
+		Recorder:        events.NewFakeRecorder(16),
+		Metrics:         fakeMetrics,
+		Recommender:     recommender.New(),
+		Resizer:         &actuator.Resizer{Client: k8sClient},
+		Cooldowns:       actuator.NewCooldownTracker(),
+		ResizeSupported: true,
 	}
 }
 
@@ -115,9 +121,9 @@ var _ = Describe("DynamicResource Controller", func() {
 	It("matches a Deployment by label and becomes Ready", func() {
 		labels := map[string]string{appLabelKey: appAPI}
 		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
-		Expect(k8sClient.Create(ctx, newDynamicResource("api-policy", namespace, labels))).To(Succeed())
+		Expect(k8sClient.Create(ctx, newDynamicResource(apiPolicyName, namespace, labels))).To(Succeed())
 
-		dr := reconcileOnce(ctx, "api-policy", namespace)
+		dr := reconcileOnce(ctx, apiPolicyName, namespace)
 
 		Expect(dr.Status.MatchedWorkloads).To(ConsistOf(
 			autoscalingv1alpha1.WorkloadReference{Kind: "Deployment", Name: appAPI},
@@ -162,9 +168,9 @@ var _ = Describe("DynamicResource Controller", func() {
 
 		labels := map[string]string{appLabelKey: appAPI}
 		Expect(k8sClient.Create(ctx, newDeployment(appAPI, otherNS, labels))).To(Succeed())
-		Expect(k8sClient.Create(ctx, newDynamicResource("api-policy", namespace, labels))).To(Succeed())
+		Expect(k8sClient.Create(ctx, newDynamicResource(apiPolicyName, namespace, labels))).To(Succeed())
 
-		dr := reconcileOnce(ctx, "api-policy", namespace)
+		dr := reconcileOnce(ctx, apiPolicyName, namespace)
 		Expect(dr.Status.MatchedWorkloads).To(BeEmpty())
 	})
 
@@ -205,7 +211,7 @@ var _ = Describe("DynamicResource Controller", func() {
 	It("publishes clamped recommendations from usage samples", func() {
 		labels := map[string]string{appLabelKey: appAPI}
 		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
-		Expect(k8sClient.Create(ctx, newDynamicResource("api-policy", namespace, labels))).To(Succeed())
+		Expect(k8sClient.Create(ctx, newDynamicResource(apiPolicyName, namespace, labels))).To(Succeed())
 
 		now := metav1.Now().Time
 		fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
@@ -218,7 +224,7 @@ var _ = Describe("DynamicResource Controller", func() {
 		})
 		DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
 
-		dr := reconcileOnce(ctx, "api-policy", namespace)
+		dr := reconcileOnce(ctx, apiPolicyName, namespace)
 
 		Expect(dr.Status.Recommendations).To(HaveLen(1))
 		Expect(dr.Status.Recommendations[0].Workload).To(Equal(appAPI))
@@ -262,7 +268,7 @@ var _ = Describe("DynamicResource Controller", func() {
 	It("skips containers with an Off override", func() {
 		labels := map[string]string{appLabelKey: appAPI}
 		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
-		dr := newDynamicResource("api-policy", namespace, labels)
+		dr := newDynamicResource(apiPolicyName, namespace, labels)
 		dr.Spec.ContainerOverrides = []autoscalingv1alpha1.ContainerOverride{{
 			ContainerName: "istio-proxy",
 			Mode:          autoscalingv1alpha1.ContainerModeOff,
@@ -278,7 +284,7 @@ var _ = Describe("DynamicResource Controller", func() {
 		})
 		DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
 
-		got := reconcileOnce(ctx, "api-policy", namespace)
+		got := reconcileOnce(ctx, apiPolicyName, namespace)
 
 		Expect(got.Status.Recommendations[0].Containers).To(HaveLen(1))
 		Expect(got.Status.Recommendations[0].Containers[0].ContainerName).To(Equal(appAPI))
@@ -287,12 +293,12 @@ var _ = Describe("DynamicResource Controller", func() {
 	It("reports MetricsUnavailable when the provider fails", func() {
 		labels := map[string]string{appLabelKey: appAPI}
 		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
-		Expect(k8sClient.Create(ctx, newDynamicResource("api-policy", namespace, labels))).To(Succeed())
+		Expect(k8sClient.Create(ctx, newDynamicResource(apiPolicyName, namespace, labels))).To(Succeed())
 
 		fakeMetrics.SetError(fmt.Errorf("metrics-server down"))
 		DeferCleanup(func() { fakeMetrics.SetError(nil) })
 
-		nn := types.NamespacedName{Name: "api-policy", Namespace: namespace}
+		nn := types.NamespacedName{Name: apiPolicyName, Namespace: namespace}
 		_, err := newReconciler().Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).To(HaveOccurred())
 
@@ -305,21 +311,149 @@ var _ = Describe("DynamicResource Controller", func() {
 	It("rejects the Prometheus provider until implemented", func() {
 		labels := map[string]string{appLabelKey: appAPI}
 		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
-		dr := newDynamicResource("api-policy", namespace, labels)
+		dr := newDynamicResource(apiPolicyName, namespace, labels)
 		dr.Spec.Metrics = &autoscalingv1alpha1.MetricsConfig{
 			Provider: autoscalingv1alpha1.MetricsProviderPrometheus,
 		}
 		Expect(k8sClient.Create(ctx, dr)).To(Succeed())
 
-		got := reconcileOnce(ctx, "api-policy", namespace)
+		got := reconcileOnce(ctx, apiPolicyName, namespace)
 		ready := meta.FindStatusCondition(got.Status.Conditions, autoscalingv1alpha1.ConditionReady)
 		Expect(ready.Status).To(Equal(metav1.ConditionFalse))
 		Expect(ready.Reason).To(Equal("UnsupportedProvider"))
 	})
 
+	Context("actuation (updateMode: InPlaceOnly)", func() {
+		newRunningPod := func(name string, podLabels map[string]string, requests, limits corev1.ResourceList) *corev1.Pod {
+			p := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: podLabels},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  appAPI,
+						Image: "nginx",
+						Resources: corev1.ResourceRequirements{
+							Requests: requests,
+							Limits:   limits,
+						},
+					}},
+				},
+			}
+			Expect(k8sClient.Create(ctx, p)).To(Succeed())
+			p.Status.Phase = corev1.PodRunning
+			Expect(k8sClient.Status().Update(ctx, p)).To(Succeed())
+			return p
+		}
+
+		requests := func(cpu, mem string) corev1.ResourceList {
+			return corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse(cpu),
+				corev1.ResourceMemory: resource.MustParse(mem),
+			}
+		}
+
+		It("resizes a pod in place, step-capped", func() {
+			labels := map[string]string{appLabelKey: appAPI}
+			Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+			newRunningPod(apiPodName, labels, requests("100m", "128Mi"), requests("200m", "256Mi"))
+
+			dr := newDynamicResource(apiPolicyName, namespace, labels)
+			dr.Spec.UpdateMode = autoscalingv1alpha1.UpdateModeInPlaceOnly
+			Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+			// Usage far above current requests: recommendation ~600m+, step
+			// cap limits the first resize to 150m (50% from 100m).
+			fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+				Pod: apiPodName, Timestamp: metav1.Now().Time,
+				Containers: []metrics.ContainerUsage{{
+					Container: appAPI,
+					CPU:       resource.MustParse("600m"),
+					Memory:    resource.MustParse("120Mi"),
+				}},
+			})
+			DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+			reconcileOnce(ctx, apiPolicyName, namespace)
+
+			var got corev1.Pod
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: apiPodName, Namespace: namespace}, &got)).To(Succeed())
+			cpu := got.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+			Expect(cpu.MilliValue()).To(Equal(int64(150)), "50%% step cap from 100m")
+			// Burstable 2x ratio preserved on the limit.
+			cpuLim := got.Spec.Containers[0].Resources.Limits[corev1.ResourceCPU]
+			Expect(cpuLim.MilliValue()).To(Equal(int64(300)))
+
+			var updated autoscalingv1alpha1.DynamicResource
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: apiPolicyName, Namespace: namespace}, &updated)).To(Succeed())
+			Expect(updated.Status.LastResizeTime).NotTo(BeNil())
+			Expect(updated.Status.Recommendations[0].Containers[0].Applied).NotTo(BeNil())
+		})
+
+		It("does not touch pods in Off mode", func() {
+			labels := map[string]string{appLabelKey: appAPI}
+			Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+			newRunningPod(apiPodName, labels, requests("100m", "128Mi"), nil)
+
+			Expect(k8sClient.Create(ctx, newDynamicResource(apiPolicyName, namespace, labels))).To(Succeed())
+
+			fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+				Pod: apiPodName, Timestamp: metav1.Now().Time,
+				Containers: []metrics.ContainerUsage{{
+					Container: appAPI,
+					CPU:       resource.MustParse("600m"),
+					Memory:    resource.MustParse("120Mi"),
+				}},
+			})
+			DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+			dr := reconcileOnce(ctx, apiPolicyName, namespace)
+			Expect(dr.Status.Recommendations).NotTo(BeEmpty(), "recommendations still published in Off mode")
+
+			var got corev1.Pod
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: apiPodName, Namespace: namespace}, &got)).To(Succeed())
+			cpu := got.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+			Expect(cpu.MilliValue()).To(Equal(int64(100)), "Off mode must not resize")
+			Expect(got.Status.Phase).To(Equal(corev1.PodRunning))
+		})
+
+		It("blocks a second resize within the cooldown", func() {
+			labels := map[string]string{appLabelKey: appAPI}
+			Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+			newRunningPod(apiPodName, labels, requests("100m", "128Mi"), nil)
+
+			dr := newDynamicResource(apiPolicyName, namespace, labels)
+			dr.Spec.UpdateMode = autoscalingv1alpha1.UpdateModeInPlaceOnly
+			Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+			fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+				Pod: apiPodName, Timestamp: metav1.Now().Time,
+				Containers: []metrics.ContainerUsage{{
+					Container: appAPI,
+					CPU:       resource.MustParse("600m"),
+					Memory:    resource.MustParse("120Mi"),
+				}},
+			})
+			DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+			// Same reconciler instance so the cooldown tracker is shared
+			// across both passes.
+			reconciler := newReconciler()
+			nn := types.NamespacedName{Name: apiPolicyName, Namespace: namespace}
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+			Expect(err).NotTo(HaveOccurred())
+
+			var got corev1.Pod
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: apiPodName, Namespace: namespace}, &got)).To(Succeed())
+			cpu := got.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+			Expect(cpu.MilliValue()).To(Equal(int64(150)),
+				"second step (150m to 225m) must be blocked by the scale-up cooldown")
+		})
+	})
+
 	It("maps a Deployment event to the DynamicResources selecting it", func() {
 		labels := map[string]string{appLabelKey: appAPI}
-		Expect(k8sClient.Create(ctx, newDynamicResource("api-policy", namespace, labels))).To(Succeed())
+		Expect(k8sClient.Create(ctx, newDynamicResource(apiPolicyName, namespace, labels))).To(Succeed())
 		Expect(k8sClient.Create(ctx, newDynamicResource("unrelated", namespace, map[string]string{appLabelKey: "other"}))).To(Succeed())
 
 		deploy := newDeployment(appAPI, namespace, labels)
@@ -327,7 +461,7 @@ var _ = Describe("DynamicResource Controller", func() {
 
 		reqs := newReconciler().mapDeploymentToDynamicResources(ctx, deploy)
 		Expect(reqs).To(ConsistOf(reconcile.Request{
-			NamespacedName: types.NamespacedName{Name: "api-policy", Namespace: namespace},
+			NamespacedName: types.NamespacedName{Name: apiPolicyName, Namespace: namespace},
 		}))
 	})
 })

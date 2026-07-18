@@ -37,6 +37,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	autoscalingv1alpha1 "github.com/jineshnagori/kubera/api/v1alpha1"
+	"github.com/jineshnagori/kubera/internal/actuator"
 	"github.com/jineshnagori/kubera/internal/metrics"
 	"github.com/jineshnagori/kubera/internal/recommender"
 )
@@ -50,6 +51,11 @@ type DynamicResourceReconciler struct {
 	Recorder    events.EventRecorder
 	Metrics     metrics.Provider
 	Recommender *recommender.Recommender
+	Resizer     *actuator.Resizer
+	Cooldowns   *actuator.CooldownTracker
+	// ResizeSupported is detected once at startup: kube-apiserver 1.33+
+	// exposes the Pod resize subresource.
+	ResizeSupported bool
 }
 
 // +kubebuilder:rbac:groups=autoscaling.kubera.io,resources=dynamicresources,verbs=get;list;watch;create;update;patch;delete
@@ -125,6 +131,30 @@ func (r *DynamicResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		dr.Status.Recommendations = recs
 		r.Recorder.Eventf(&dr, nil, "Normal", "RecommendationUpdated", "Reconcile",
 			"updated recommendations for %d workload(s)", len(recs))
+	}
+
+	if dr.Spec.UpdateMode != autoscalingv1alpha1.UpdateModeOff && dr.Spec.UpdateMode != "" {
+		switch {
+		case !r.ResizeSupported:
+			r.setCondition(&dr, autoscalingv1alpha1.ConditionResizeInfeasible, metav1.ConditionTrue,
+				"ClusterUnsupported", "cluster does not support the Pod resize subresource (needs Kubernetes 1.33+)")
+		default:
+			resized, infeasible, actErr := r.actuate(ctx, &dr, matched, dr.Status.Recommendations)
+			if actErr != nil {
+				if _, patchErr := r.patchStatus(ctx, orig, &dr, ctrl.Result{}); patchErr != nil {
+					return ctrl.Result{}, patchErr
+				}
+				return ctrl.Result{}, actErr
+			}
+			if len(infeasible) > 0 {
+				r.setCondition(&dr, autoscalingv1alpha1.ConditionResizeInfeasible, metav1.ConditionTrue,
+					"NodeCapacity", fmt.Sprintf("resize infeasible for pod(s): %v", infeasible))
+			} else {
+				r.setCondition(&dr, autoscalingv1alpha1.ConditionResizeInfeasible, metav1.ConditionFalse,
+					"Feasible", "no infeasible resizes")
+			}
+			log.V(1).Info("actuation pass", "resized", resized, "infeasible", len(infeasible))
+		}
 	}
 
 	r.setCondition(&dr, autoscalingv1alpha1.ConditionReady, metav1.ConditionTrue, "Reconciled",
