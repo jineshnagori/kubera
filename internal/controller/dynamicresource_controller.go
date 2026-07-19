@@ -24,6 +24,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,17 +43,23 @@ import (
 	"github.com/jineshnagori/kubera/internal/recommender"
 )
 
-const defaultPollingInterval = 30 * time.Second
+const (
+	defaultPollingInterval = 30 * time.Second
+	kindDeployment         = "Deployment"
+)
 
 // DynamicResourceReconciler reconciles a DynamicResource object
 type DynamicResourceReconciler struct {
 	client.Client
-	Scheme      *runtime.Scheme
-	Recorder    events.EventRecorder
-	Metrics     metrics.Provider
-	Recommender *recommender.Recommender
-	Resizer     *actuator.Resizer
-	Cooldowns   *actuator.CooldownTracker
+	Scheme   *runtime.Scheme
+	Recorder events.EventRecorder
+	Metrics  metrics.Provider
+	// PrometheusMetrics serves DynamicResources with provider: Prometheus;
+	// nil when the operator was started without --prometheus-url.
+	PrometheusMetrics metrics.Provider
+	Recommender       *recommender.Recommender
+	Resizer           *actuator.Resizer
+	Cooldowns         *actuator.CooldownTracker
 	// ResizeSupported is detected once at startup: kube-apiserver 1.33+
 	// exposes the Pod resize subresource.
 	ResizeSupported bool
@@ -106,20 +113,31 @@ func (r *DynamicResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		r.Recorder.Eventf(&dr, nil, "Warning", "Conflicted", "Reconcile", "%s", msg)
 		return r.patchStatus(ctx, orig, &dr, ctrl.Result{})
 	}
-	r.setCondition(&dr, autoscalingv1alpha1.ConditionConflicted, metav1.ConditionFalse, "NoConflict", "no overlapping DynamicResource")
+	vpaConf, err := r.vpaConflicts(ctx, dr.Namespace, matched)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(vpaConf) > 0 {
+		msg := fmt.Sprintf("workloads already managed by a VerticalPodAutoscaler: %v", vpaConf)
+		r.setCondition(&dr, autoscalingv1alpha1.ConditionConflicted, metav1.ConditionTrue, "VPAConflict", msg)
+		r.setCondition(&dr, autoscalingv1alpha1.ConditionReady, metav1.ConditionFalse, "Conflicted", msg)
+		r.Recorder.Eventf(&dr, nil, "Warning", "VPAConflict", "Reconcile", "%s", msg)
+		return r.patchStatus(ctx, orig, &dr, ctrl.Result{RequeueAfter: r.pollingInterval(&dr)})
+	}
+	r.setCondition(&dr, autoscalingv1alpha1.ConditionConflicted, metav1.ConditionFalse, "NoConflict", "no overlapping DynamicResource or VPA")
 
 	if len(matched) == 0 {
 		r.setCondition(&dr, autoscalingv1alpha1.ConditionReady, metav1.ConditionFalse, "NoMatch", "selector matches no Deployment in namespace")
 		return r.patchStatus(ctx, orig, &dr, ctrl.Result{RequeueAfter: r.pollingInterval(&dr)})
 	}
 
-	if m := dr.Spec.Metrics; m != nil && m.Provider == autoscalingv1alpha1.MetricsProviderPrometheus {
+	if m := dr.Spec.Metrics; m != nil && m.Provider == autoscalingv1alpha1.MetricsProviderPrometheus && r.PrometheusMetrics == nil {
 		r.setCondition(&dr, autoscalingv1alpha1.ConditionReady, metav1.ConditionFalse, "UnsupportedProvider",
-			"Prometheus metrics provider is not implemented yet; use MetricsServer")
+			"Prometheus provider requested but the operator was started without --prometheus-url")
 		return r.patchStatus(ctx, orig, &dr, ctrl.Result{})
 	}
 
-	recs, err := r.computeRecommendations(ctx, &dr, matched)
+	recs, usage, err := r.computeRecommendations(ctx, &dr, matched)
 	if err != nil {
 		r.setCondition(&dr, autoscalingv1alpha1.ConditionReady, metav1.ConditionFalse, "MetricsUnavailable", err.Error())
 		if _, patchErr := r.patchStatus(ctx, orig, &dr, ctrl.Result{}); patchErr != nil {
@@ -127,6 +145,7 @@ func (r *DynamicResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 		return ctrl.Result{}, err
 	}
+	publishRecommendationMetrics(&dr, recs)
 	if !equality.Semantic.DeepEqual(dr.Status.Recommendations, recs) {
 		dr.Status.Recommendations = recs
 		r.Recorder.Eventf(&dr, nil, "Normal", "RecommendationUpdated", "Reconcile",
@@ -139,7 +158,7 @@ func (r *DynamicResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			r.setCondition(&dr, autoscalingv1alpha1.ConditionResizeInfeasible, metav1.ConditionTrue,
 				"ClusterUnsupported", "cluster does not support the Pod resize subresource (needs Kubernetes 1.33+)")
 		default:
-			resized, infeasible, actErr := r.actuate(ctx, &dr, matched, dr.Status.Recommendations)
+			resized, infeasible, actErr := r.actuate(ctx, &dr, matched, dr.Status.Recommendations, usage)
 			if actErr != nil {
 				if _, patchErr := r.patchStatus(ctx, orig, &dr, ctrl.Result{}); patchErr != nil {
 					return ctrl.Result{}, patchErr
@@ -286,7 +305,7 @@ func (r *DynamicResourceReconciler) patchStatus(ctx context.Context, orig, dr *a
 func workloadRefs(deployments []appsv1.Deployment) []autoscalingv1alpha1.WorkloadReference {
 	refs := make([]autoscalingv1alpha1.WorkloadReference, 0, len(deployments))
 	for i := range deployments {
-		refs = append(refs, autoscalingv1alpha1.WorkloadReference{Kind: "Deployment", Name: deployments[i].Name})
+		refs = append(refs, autoscalingv1alpha1.WorkloadReference{Kind: kindDeployment, Name: deployments[i].Name})
 	}
 	return refs
 }
@@ -320,6 +339,23 @@ func (r *DynamicResourceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&autoscalingv1alpha1.DynamicResource{}).
 		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(r.mapDeploymentToDynamicResources)).
+		Watches(&autoscalingv2.HorizontalPodAutoscaler{}, handler.EnqueueRequestsFromMapFunc(r.mapNamespaceToDynamicResources)).
 		Named("dynamicresource").
 		Complete(r)
+}
+
+// mapNamespaceToDynamicResources enqueues every DynamicResource in the
+// object's namespace; used for HPA events, which are rare and namespace-local.
+func (r *DynamicResourceReconciler) mapNamespaceToDynamicResources(ctx context.Context, obj client.Object) []ctrl.Request {
+	var list autoscalingv1alpha1.DynamicResourceList
+	if err := r.List(ctx, &list, client.InNamespace(obj.GetNamespace())); err != nil {
+		return nil
+	}
+	reqs := make([]ctrl.Request, 0, len(list.Items))
+	for i := range list.Items {
+		reqs = append(reqs, ctrl.Request{NamespacedName: types.NamespacedName{
+			Namespace: list.Items[i].Namespace, Name: list.Items[i].Name,
+		}})
+	}
+	return reqs
 }

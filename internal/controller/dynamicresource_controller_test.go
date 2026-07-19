@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -38,10 +39,12 @@ import (
 )
 
 const (
-	appLabelKey   = "app"
-	appAPI        = "api"
-	apiPolicyName = "api-policy"
-	apiPodName    = "api-pod-1"
+	appLabelKey    = "app"
+	appAPI         = "api"
+	apiPolicyName  = "api-policy"
+	apiPodName     = "api-pod-1"
+	testImage      = "nginx"
+	kindDeployTest = "Deployment"
 )
 
 var fakeMetrics = metrics.NewFakeProvider()
@@ -86,7 +89,7 @@ func newDeployment(name, namespace string, podLabels map[string]string) *appsv1.
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: podLabels},
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{Name: appAPI, Image: "nginx"}},
+					Containers: []corev1.Container{{Name: appAPI, Image: testImage}},
 				},
 			},
 		},
@@ -126,7 +129,7 @@ var _ = Describe("DynamicResource Controller", func() {
 		dr := reconcileOnce(ctx, apiPolicyName, namespace)
 
 		Expect(dr.Status.MatchedWorkloads).To(ConsistOf(
-			autoscalingv1alpha1.WorkloadReference{Kind: "Deployment", Name: appAPI},
+			autoscalingv1alpha1.WorkloadReference{Kind: kindDeployTest, Name: appAPI},
 		))
 		ready := meta.FindStatusCondition(dr.Status.Conditions, autoscalingv1alpha1.ConditionReady)
 		Expect(ready).NotTo(BeNil())
@@ -330,7 +333,7 @@ var _ = Describe("DynamicResource Controller", func() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:  appAPI,
-						Image: "nginx",
+						Image: testImage,
 						Resources: corev1.ResourceRequirements{
 							Requests: requests,
 							Limits:   limits,
@@ -448,6 +451,124 @@ var _ = Describe("DynamicResource Controller", func() {
 			cpu := got.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
 			Expect(cpu.MilliValue()).To(Equal(int64(150)),
 				"second step (150m to 225m) must be blocked by the scale-up cooldown")
+		})
+	})
+
+	Context("HPA coordination", func() {
+		newHPA := func(name, targetDeploy string, cpuTarget int32) *autoscalingv2.HorizontalPodAutoscaler {
+			minReplicas := int32(1)
+			return &autoscalingv2.HorizontalPodAutoscaler{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+					ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+						APIVersion: "apps/v1", Kind: kindDeployTest, Name: targetDeploy,
+					},
+					MinReplicas: &minReplicas,
+					MaxReplicas: 10,
+					Metrics: []autoscalingv2.MetricSpec{{
+						Type: autoscalingv2.ResourceMetricSourceType,
+						Resource: &autoscalingv2.ResourceMetricSource{
+							Name: corev1.ResourceCPU,
+							Target: autoscalingv2.MetricTarget{
+								Type:               autoscalingv2.UtilizationMetricType,
+								AverageUtilization: &cpuTarget,
+							},
+						},
+					}},
+				},
+			}
+		}
+
+		requests := func(cpu, mem string) corev1.ResourceList {
+			return corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse(cpu),
+				corev1.ResourceMemory: resource.MustParse(mem),
+			}
+		}
+
+		newRunningPod := func(name string, podLabels map[string]string, req, lim corev1.ResourceList) {
+			p := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: podLabels},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: appAPI, Image: testImage,
+						Resources: corev1.ResourceRequirements{Requests: req, Limits: lim},
+					}},
+				},
+			}
+			Expect(k8sClient.Create(ctx, p)).To(Succeed())
+			p.Status.Phase = corev1.PodRunning
+			Expect(k8sClient.Status().Update(ctx, p)).To(Succeed())
+		}
+
+		It("pauses actuation and reports Scaling while HPA scales", func() {
+			labels := map[string]string{appLabelKey: appAPI}
+			Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+			newRunningPod(apiPodName, labels, requests("100m", "128Mi"), nil)
+
+			hpa := newHPA("api-hpa", appAPI, 75)
+			Expect(k8sClient.Create(ctx, hpa)).To(Succeed())
+			hpa.Status.CurrentReplicas = 1
+			hpa.Status.DesiredReplicas = 3 // actively scaling
+			Expect(k8sClient.Status().Update(ctx, hpa)).To(Succeed())
+
+			dr := newDynamicResource(apiPolicyName, namespace, labels)
+			dr.Spec.UpdateMode = autoscalingv1alpha1.UpdateModeInPlaceOnly
+			Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+			fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+				Pod: apiPodName, Timestamp: metav1.Now().Time,
+				Containers: []metrics.ContainerUsage{{
+					Container: appAPI,
+					CPU:       resource.MustParse("600m"),
+					Memory:    resource.MustParse("120Mi"),
+				}},
+			})
+			DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+			got := reconcileOnce(ctx, apiPolicyName, namespace)
+			Expect(got.Status.HPAState).To(Equal(autoscalingv1alpha1.HPAStateScaling))
+
+			var pod corev1.Pod
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: apiPodName, Namespace: namespace}, &pod)).To(Succeed())
+			cpu := pod.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+			Expect(cpu.MilliValue()).To(Equal(int64(100)), "no resize while HPA is scaling")
+		})
+
+		It("floors a downward resize so HPA is not re-triggered", func() {
+			labels := map[string]string{appLabelKey: appAPI}
+			Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+			// Oversized: 800m request, usage 130m.
+			newRunningPod(apiPodName, labels, requests("800m", "256Mi"), nil)
+
+			Expect(k8sClient.Create(ctx, newHPA("api-hpa", appAPI, 75))).To(Succeed())
+
+			dr := newDynamicResource(apiPolicyName, namespace, labels)
+			dr.Spec.UpdateMode = autoscalingv1alpha1.UpdateModeInPlaceOnly
+			dr.Spec.Behavior = &autoscalingv1alpha1.BehaviorSpec{
+				ScaleDown: &autoscalingv1alpha1.ScalingPolicy{MaxStepPercent: 90},
+			}
+			Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+			fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+				Pod: apiPodName, Timestamp: metav1.Now().Time,
+				Containers: []metrics.ContainerUsage{{
+					Container: appAPI,
+					CPU:       resource.MustParse("130m"),
+					Memory:    resource.MustParse("120Mi"),
+				}},
+			})
+			DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+			reconcileOnce(ctx, apiPolicyName, namespace)
+
+			var pod corev1.Pod
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: apiPodName, Namespace: namespace}, &pod)).To(Succeed())
+			cpu := pod.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+			// Raw recommendation ~150m, but floor = 130*100/(75-10) = 200m:
+			// at 200m HPA sees 65%, below its 75% target.
+			Expect(cpu.MilliValue()).To(Equal(int64(200)),
+				"downward resize must stop at the HPA headroom floor")
 		})
 	})
 

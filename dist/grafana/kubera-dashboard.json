@@ -1,0 +1,105 @@
+{
+  "title": "KubeRA — Resource Optimization",
+  "uid": "kubera-overview",
+  "schemaVersion": 39,
+  "tags": ["kubera", "autoscaling", "cost"],
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "query": "label_values(kubera_recommended_cpu_millicores, namespace)",
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Reclaimable CPU (cores)",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(kubera_reclaimable_cpu_millicores{namespace=~\"$namespace\"}) / 1000",
+          "legendFormat": "cores"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Reclaimable Memory (GiB)",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(kubera_reclaimable_memory_bytes{namespace=~\"$namespace\"}) / 1024 / 1024 / 1024",
+          "legendFormat": "GiB"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Resizes (last 24h)",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(increase(kubera_pod_resizes_total{namespace=~\"$namespace\"}[24h]))",
+          "legendFormat": "resizes"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Recommended CPU by workload (millicores)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (workload) (kubera_recommended_cpu_millicores{namespace=~\"$namespace\"})",
+          "legendFormat": "{{workload}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Recommended Memory by workload (bytes)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum by (workload) (kubera_recommended_memory_bytes{namespace=~\"$namespace\"})",
+          "legendFormat": "{{workload}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Resize rate by direction",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "expr": "sum by (direction) (rate(kubera_pod_resizes_total{namespace=~\"$namespace\"}[5m]))",
+          "legendFormat": "{{direction}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Reclaimable CPU by workload (millicores)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        {
+          "expr": "sum by (workload) (kubera_reclaimable_cpu_millicores{namespace=~\"$namespace\"})",
+          "legendFormat": "{{workload}}"
+        }
+      ]
+    }
+  ]
+}

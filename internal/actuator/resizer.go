@@ -19,26 +19,39 @@ package actuator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// ErrRateLimited is returned by Apply when the cluster-wide resize budget is
+// exhausted; the caller should skip and retry on the next poll tick rather
+// than treat it as a failure.
+var ErrRateLimited = errors.New("cluster-wide resize rate limit reached")
+
 // Resizer applies PodPlans through the Pod "resize" subresource (Kubernetes
 // 1.33+). A plain Pod PATCH of spec resources is rejected there; the
-// subresource is the only supported path.
+// subresource is the only supported path. Limiter (optional) throttles
+// resizes cluster-wide to prevent thundering herds when many
+// DynamicResources act at once.
 type Resizer struct {
-	Client client.Client
+	Client  client.Client
+	Limiter *rate.Limiter
 }
 
 func (r *Resizer) Apply(ctx context.Context, namespace string, plan *PodPlan) error {
+	if r.Limiter != nil && !r.Limiter.Allow() {
+		return ErrRateLimited
+	}
 	type containerPatch struct {
 		Name      string                      `json:"name"`
 		Resources corev1.ResourceRequirements `json:"resources"`

@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	autoscalingv1alpha1 "github.com/jineshnagori/kubera/api/v1alpha1"
+	metricspkg "github.com/jineshnagori/kubera/internal/metrics"
 	"github.com/jineshnagori/kubera/internal/recommender"
 )
 
@@ -46,10 +47,19 @@ const (
 	memRoundingBytes = 1024 * 1024
 )
 
+// ContainerUsageSnapshot is the latest observed mean usage per container of a
+// workload, for HPA coupled-loop math.
+type ContainerUsageSnapshot struct {
+	CPUMilli float64
+	MemBytes float64
+}
+
 // computeRecommendations feeds current usage samples into the recommender and
-// builds the per-workload recommendation list for status.
-func (r *DynamicResourceReconciler) computeRecommendations(ctx context.Context, dr *autoscalingv1alpha1.DynamicResource, matched []appsv1.Deployment) ([]autoscalingv1alpha1.WorkloadRecommendation, error) {
+// builds the per-workload recommendation list for status, plus a snapshot of
+// the latest mean usage per workload/container.
+func (r *DynamicResourceReconciler) computeRecommendations(ctx context.Context, dr *autoscalingv1alpha1.DynamicResource, matched []appsv1.Deployment) ([]autoscalingv1alpha1.WorkloadRecommendation, map[string]map[string]ContainerUsageSnapshot, error) {
 	cpuPct, memPct := percentiles(dr.Spec.Metrics)
+	usageSnapshot := map[string]map[string]ContainerUsageSnapshot{}
 
 	var out []autoscalingv1alpha1.WorkloadRecommendation
 	for i := range matched {
@@ -59,18 +69,33 @@ func (r *DynamicResourceReconciler) computeRecommendations(ctx context.Context, 
 		if err != nil {
 			continue
 		}
-		usages, err := r.Metrics.ListPodUsage(ctx, dr.Namespace, podSelector)
+		usages, err := r.providerFor(dr).ListPodUsage(ctx, dr.Namespace, podSelector)
 		if err != nil {
-			return nil, fmt.Errorf("workload %s: %w", deploy.Name, err)
+			return nil, nil, fmt.Errorf("workload %s: %w", deploy.Name, err)
 		}
 
 		containers := map[string]bool{}
+		sums := map[string]ContainerUsageSnapshot{}
+		counts := map[string]int{}
 		for _, pod := range usages {
 			for _, cu := range pod.Containers {
 				key := recommender.ContainerKey{Namespace: dr.Namespace, Workload: deploy.Name, Container: cu.Container}
 				r.Recommender.Observe(key, pod.Pod, float64(cu.CPU.MilliValue()), float64(cu.Memory.Value()), pod.Timestamp)
 				containers[cu.Container] = true
+				s := sums[cu.Container]
+				s.CPUMilli += float64(cu.CPU.MilliValue())
+				s.MemBytes += float64(cu.Memory.Value())
+				sums[cu.Container] = s
+				counts[cu.Container]++
 			}
+		}
+		if len(sums) > 0 {
+			mean := map[string]ContainerUsageSnapshot{}
+			for name, s := range sums {
+				n := float64(counts[name])
+				mean[name] = ContainerUsageSnapshot{CPUMilli: s.CPUMilli / n, MemBytes: s.MemBytes / n}
+			}
+			usageSnapshot[deploy.Name] = mean
 		}
 
 		rec := autoscalingv1alpha1.WorkloadRecommendation{Workload: deploy.Name}
@@ -113,7 +138,15 @@ func (r *DynamicResourceReconciler) computeRecommendations(ctx context.Context, 
 	slices.SortFunc(out, func(a, b autoscalingv1alpha1.WorkloadRecommendation) int {
 		return strings.Compare(a.Workload, b.Workload)
 	})
-	return out, nil
+	return out, usageSnapshot, nil
+}
+
+// providerFor picks the metrics backend a DynamicResource asked for.
+func (r *DynamicResourceReconciler) providerFor(dr *autoscalingv1alpha1.DynamicResource) metricspkg.Provider {
+	if m := dr.Spec.Metrics; m != nil && m.Provider == autoscalingv1alpha1.MetricsProviderPrometheus && r.PrometheusMetrics != nil {
+		return r.PrometheusMetrics
+	}
+	return r.Metrics
 }
 
 func percentiles(m *autoscalingv1alpha1.MetricsConfig) (cpu, mem float64) {
