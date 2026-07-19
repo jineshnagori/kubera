@@ -20,6 +20,7 @@ limitations under the License.
 package e2e
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"time"
@@ -37,10 +38,33 @@ const workloadNamespace = "kubera-e2e-workload"
 // the Pod DOWN in place, step-capped, without restarting it.
 var _ = Describe("In-place resize", Ordered, func() {
 	BeforeAll(func() {
-		By("installing metrics-server")
-		cmd := exec.Command("kubectl", "apply", "-f",
-			"https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml")
+		// The Manager suite tears down its deployment and CRDs in AfterAll,
+		// so this suite installs and deploys the operator itself.
+		By("installing CRDs")
+		cmd := exec.Command("make", "install")
 		_, err := utils.Run(cmd)
+		Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
+
+		By("waiting for the DynamicResource CRD to be established")
+		cmd = exec.Command("kubectl", "wait", "--for=condition=Established",
+			"crd/dynamicresources.autoscaling.kubera.io", "--timeout=60s")
+		_, err = utils.Run(cmd)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("deploying the controller-manager")
+		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", managerImage))
+		_, err = utils.Run(cmd)
+		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
+
+		cmd = exec.Command("kubectl", "-n", namespace, "rollout", "status",
+			"deployment/kubera-controller-manager", "--timeout=120s")
+		_, err = utils.Run(cmd)
+		Expect(err).NotTo(HaveOccurred(), "controller-manager did not become ready")
+
+		By("installing metrics-server")
+		cmd = exec.Command("kubectl", "apply", "-f",
+			"https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml")
+		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to install metrics-server")
 
 		// kind nodes use self-signed kubelet certs.
@@ -73,6 +97,14 @@ var _ = Describe("In-place resize", Ordered, func() {
 
 	AfterAll(func() {
 		cmd := exec.Command("kubectl", "delete", "ns", workloadNamespace, "--ignore-not-found")
+		_, _ = utils.Run(cmd)
+
+		By("undeploying the controller-manager")
+		cmd = exec.Command("make", "undeploy")
+		_, _ = utils.Run(cmd)
+
+		By("uninstalling CRDs")
+		cmd = exec.Command("make", "uninstall")
 		_, _ = utils.Run(cmd)
 	})
 
