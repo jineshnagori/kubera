@@ -248,6 +248,13 @@ Kubernetes 1.33+ realities KubeRA is designed around:
 - Resizes can be **`Deferred`** (retried with backoff) or **`Infeasible`**
   (node too small — surfaced as a status condition; optional fallback to
   evict-and-recreate, which also wakes the cluster autoscaler).
+- **`updateMode: InPlaceOrRecreate`** evicts pods (via the Eviction API,
+  respecting PodDisruptionBudgets, one pod per workload per pass) when a
+  resize is impossible in-place — an Infeasible resize, or a Guaranteed pod
+  that must shrink memory. Requires `--enable-pod-webhook`: the webhook
+  injects the recommendation into the replacement pod; without it the
+  replacement would inherit the stale template resources, so KubeRA refuses
+  and sets condition `ResizeInfeasible: RecreateRequiresWebhook`.
 - Containers need `resizePolicy` set — a **one-time rollout at onboarding**.
 - **OOMKill fast path** — on OOM, memory is bumped immediately, bypassing
   cooldowns.

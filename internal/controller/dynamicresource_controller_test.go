@@ -25,6 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -196,6 +197,52 @@ var _ = Describe("DynamicResource Controller", func() {
 		Expect(conflicted.Status).To(Equal(metav1.ConditionTrue))
 		newerReady := meta.FindStatusCondition(newerGot.Status.Conditions, autoscalingv1alpha1.ConditionReady)
 		Expect(newerReady.Status).To(Equal(metav1.ConditionFalse))
+	})
+
+	It("floors memory recommendations at 32Mi even when spec min is lower", func() {
+		labels := map[string]string{appLabelKey: appAPI}
+		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+		dr := newDynamicResource(apiPolicyName, namespace, labels)
+		dr.Spec.Resources.Memory.Min = resource.MustParse("10Mi") // foot-gun bounds
+		Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+		fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+			Pod: apiPodName, Timestamp: metav1.Now().Time,
+			Containers: []metrics.ContainerUsage{{
+				Container: appAPI,
+				CPU:       resource.MustParse("120m"),
+				Memory:    resource.MustParse("4Mi"), // tiny idle working set
+			}},
+		})
+		DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+		got := reconcileOnce(ctx, apiPolicyName, namespace)
+		mem := got.Status.Recommendations[0].Containers[0].Target[corev1.ResourceMemory]
+		Expect(mem.Value()).To(Equal(int64(32*1024*1024)),
+			"recommendation becomes a limit on Guaranteed pods; below 32Mi it OOMKills on any spike")
+	})
+
+	It("keeps last recommendations through a metrics gap", func() {
+		labels := map[string]string{appLabelKey: appAPI}
+		Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+		Expect(k8sClient.Create(ctx, newDynamicResource(apiPolicyName, namespace, labels))).To(Succeed())
+
+		fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+			Pod: apiPodName, Timestamp: metav1.Now().Time,
+			Containers: []metrics.ContainerUsage{{
+				Container: appAPI,
+				CPU:       resource.MustParse("120m"),
+				Memory:    resource.MustParse("400Mi"),
+			}},
+		})
+		first := reconcileOnce(ctx, apiPolicyName, namespace)
+		Expect(first.Status.Recommendations).NotTo(BeEmpty())
+
+		// Pods recreated: metrics-server briefly has no samples.
+		fakeMetrics.SetPodUsage(namespace)
+		second := reconcileOnce(ctx, apiPolicyName, namespace)
+		Expect(second.Status.Recommendations).To(Equal(first.Status.Recommendations),
+			"empty metrics pass must not wipe recommendations the webhook depends on")
 	})
 
 	It("rejects a spec whose min exceeds max", func() {
@@ -416,6 +463,115 @@ var _ = Describe("DynamicResource Controller", func() {
 			cpu := got.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
 			Expect(cpu.MilliValue()).To(Equal(int64(100)), "Off mode must not resize")
 			Expect(got.Status.Phase).To(Equal(corev1.PodRunning))
+		})
+
+		It("resizes every pod of the workload in the same pass", func() {
+			labels := map[string]string{appLabelKey: appAPI}
+			Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+			newRunningPod("api-pod-a", labels, requests("100m", "128Mi"), nil)
+			newRunningPod("api-pod-b", labels, requests("100m", "128Mi"), nil)
+
+			dr := newDynamicResource(apiPolicyName, namespace, labels)
+			dr.Spec.UpdateMode = autoscalingv1alpha1.UpdateModeInPlaceOnly
+			Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+			fakeMetrics.SetPodUsage(namespace,
+				metrics.PodUsage{
+					Pod: "api-pod-a", Timestamp: metav1.Now().Time,
+					Containers: []metrics.ContainerUsage{{
+						Container: appAPI,
+						CPU:       resource.MustParse("600m"),
+						Memory:    resource.MustParse("120Mi"),
+					}},
+				},
+				metrics.PodUsage{
+					Pod: "api-pod-b", Timestamp: metav1.Now().Time,
+					Containers: []metrics.ContainerUsage{{
+						Container: appAPI,
+						CPU:       resource.MustParse("600m"),
+						Memory:    resource.MustParse("120Mi"),
+					}},
+				})
+			DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+			reconcileOnce(ctx, apiPolicyName, namespace)
+
+			for _, podName := range []string{"api-pod-a", "api-pod-b"} {
+				var got corev1.Pod
+				Expect(k8sClient.Get(ctx, types.NamespacedName{Name: podName, Namespace: namespace}, &got)).To(Succeed())
+				cpu := got.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU]
+				Expect(cpu.MilliValue()).To(Equal(int64(150)),
+					"pod %s must resize in the same pass; cooldown spaces passes, not sibling pods", podName)
+			}
+		})
+
+		It("evicts a Guaranteed pod that cannot shrink memory in-place (InPlaceOrRecreate + webhook)", func() {
+			labels := map[string]string{appLabelKey: appAPI}
+			Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+			// Guaranteed: requests == limits. Memory must shrink 512Mi -> min
+			// 128Mi, impossible in-place.
+			newRunningPod(apiPodName, labels, requests("500m", "512Mi"), requests("500m", "512Mi"))
+
+			dr := newDynamicResource(apiPolicyName, namespace, labels)
+			dr.Spec.UpdateMode = autoscalingv1alpha1.UpdateModeInPlaceOrRecreate
+			Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+			fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+				Pod: apiPodName, Timestamp: metav1.Now().Time,
+				Containers: []metrics.ContainerUsage{{
+					Container: appAPI,
+					CPU:       resource.MustParse("450m"),
+					Memory:    resource.MustParse("20Mi"),
+				}},
+			})
+			DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+			reconciler := newReconciler()
+			reconciler.WebhookEnabled = true
+			nn := types.NamespacedName{Name: apiPolicyName, Namespace: namespace}
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Without a kubelet, envtest deletes the evicted pod immediately;
+			// on a real node it would linger Terminating. Either proves the
+			// eviction happened.
+			var got corev1.Pod
+			getErr := k8sClient.Get(ctx, types.NamespacedName{Name: apiPodName, Namespace: namespace}, &got)
+			if getErr == nil {
+				Expect(got.DeletionTimestamp).NotTo(BeNil(), "pod must be evicted for recreate")
+			} else {
+				Expect(apierrors.IsNotFound(getErr)).To(BeTrue(), "unexpected error: %v", getErr)
+			}
+		})
+
+		It("refuses recreate and explains when the webhook is disabled", func() {
+			labels := map[string]string{appLabelKey: appAPI}
+			Expect(k8sClient.Create(ctx, newDeployment(appAPI, namespace, labels))).To(Succeed())
+			newRunningPod(apiPodName, labels, requests("500m", "512Mi"), requests("500m", "512Mi"))
+
+			dr := newDynamicResource(apiPolicyName, namespace, labels)
+			dr.Spec.UpdateMode = autoscalingv1alpha1.UpdateModeInPlaceOrRecreate
+			Expect(k8sClient.Create(ctx, dr)).To(Succeed())
+
+			fakeMetrics.SetPodUsage(namespace, metrics.PodUsage{
+				Pod: apiPodName, Timestamp: metav1.Now().Time,
+				Containers: []metrics.ContainerUsage{{
+					Container: appAPI,
+					CPU:       resource.MustParse("450m"),
+					Memory:    resource.MustParse("20Mi"),
+				}},
+			})
+			DeferCleanup(func() { fakeMetrics.SetPodUsage(namespace) })
+
+			got := reconcileOnce(ctx, apiPolicyName, namespace) // WebhookEnabled=false
+
+			var pod corev1.Pod
+			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: apiPodName, Namespace: namespace}, &pod)).To(Succeed())
+			Expect(pod.DeletionTimestamp).To(BeNil(), "must not evict without the webhook")
+			cond := meta.FindStatusCondition(got.Status.Conditions, autoscalingv1alpha1.ConditionResizeInfeasible)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+			Expect(cond.Reason).To(Equal("RecreateRequiresWebhook"))
 		})
 
 		It("blocks a second resize within the cooldown", func() {
