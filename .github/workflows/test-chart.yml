@@ -39,8 +39,8 @@ jobs:
       - name: Prepare kubera
         run: |
           go mod tidy
-          make docker-build IMG=kubera:v0.1.0
-          kind load docker-image kubera:v0.1.0
+          make docker-build IMG=kubera:v0.1.1
+          kind load docker-image kubera:v0.1.1
 
       - name: Install Helm
         run: |

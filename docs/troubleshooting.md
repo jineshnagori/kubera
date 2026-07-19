@@ -67,12 +67,12 @@ normal.
 
 ## `events.k8s.io is forbidden` in logs
 
-RBAC from a chart older than v0.1.0. Upgrade the chart; the role needs
+RBAC from a chart older than v0.1.1. Upgrade the chart; the role needs
 `events.k8s.io` create/patch.
 
 ## Pods OOMKill after a resize down
 
-Should not happen from v0.1.0 on: memory recommendations are floored at
+Should not happen from v0.1.1 on: memory recommendations are floored at
 **32Mi** regardless of `spec.resources.memory.min`, precisely because on
 Guaranteed pods the recommendation becomes the memory limit. If you see it:
 

@@ -333,7 +333,7 @@ helm install kubera oci://ghcr.io/jineshnagori/charts/kubera \
 ```
 
 The chart's default image is `ghcr.io/jineshnagori/kubera`; pin a version with
-`--set controllerManager.container.image.tag=v0.1.0`.
+`--set controllerManager.container.image.tag=v0.1.1`.
 
 ### 1b. Alternative: build from source
 
