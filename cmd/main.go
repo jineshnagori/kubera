@@ -232,6 +232,7 @@ func main() {
 		Resizer:           &actuator.Resizer{Client: mgr.GetClient(), Limiter: limiter},
 		Cooldowns:         actuator.NewCooldownTracker(),
 		ResizeSupported:   resizeSupported,
+		WebhookEnabled:    enablePodWebhook,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "dynamicresource")
 		os.Exit(1)

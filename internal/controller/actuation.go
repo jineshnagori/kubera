@@ -41,11 +41,22 @@ const (
 	defaultReserveHeadroomPercent = int32(10)
 )
 
+// actuationResult summarizes one actuation pass.
+type actuationResult struct {
+	resized int
+	// infeasible are Pods whose pending resize the node cannot fit.
+	infeasible []string
+	// recreateBlocked is set when evict-and-recreate is needed
+	// (InPlaceOrRecreate) but the pod webhook is disabled — without it a
+	// recreated Pod would just inherit the stale template resources.
+	recreateBlocked bool
+}
+
 // actuate applies recommendations to the Pods of matched workloads via
-// in-place resize, honouring HPA coordination. Returns the number of resized
-// Pods and the names of Pods whose last resize is Infeasible. Sets
-// status.hpaState as a side effect.
-func (r *DynamicResourceReconciler) actuate(ctx context.Context, dr *autoscalingv1alpha1.DynamicResource, matched []appsv1.Deployment, recs []autoscalingv1alpha1.WorkloadRecommendation, usage map[string]map[string]ContainerUsageSnapshot) (int, []string, error) {
+// in-place resize, honouring HPA coordination; under InPlaceOrRecreate it
+// falls back to eviction (respecting PDBs) when in-place cannot converge.
+// Sets status.hpaState as a side effect.
+func (r *DynamicResourceReconciler) actuate(ctx context.Context, dr *autoscalingv1alpha1.DynamicResource, matched []appsv1.Deployment, recs []autoscalingv1alpha1.WorkloadRecommendation, usage map[string]map[string]ContainerUsageSnapshot) (actuationResult, error) {
 	log := logf.FromContext(ctx)
 	policy := actuator.DefaultPolicy(&dr.Spec)
 	now := time.Now()
@@ -56,8 +67,7 @@ func (r *DynamicResourceReconciler) actuate(ctx context.Context, dr *autoscaling
 	}
 
 	hpaState := autoscalingv1alpha1.HPAStateIdle
-	resized := 0
-	var infeasible []string
+	var res actuationResult
 	for i := range matched {
 		deploy := &matched[i]
 		rec, ok := recByWorkload[deploy.Name]
@@ -72,7 +82,7 @@ func (r *DynamicResourceReconciler) actuate(ctx context.Context, dr *autoscaling
 
 		state, err := r.coordinateHPA(ctx, dr, deploy.Name, targets, usage[deploy.Name], now)
 		if err != nil {
-			return resized, infeasible, err
+			return res, err
 		}
 		hpaState = worseHPAState(hpaState, state)
 		if state == autoscalingv1alpha1.HPAStateScaling {
@@ -82,19 +92,58 @@ func (r *DynamicResourceReconciler) actuate(ctx context.Context, dr *autoscaling
 
 		pods, err := r.listWorkloadPods(ctx, dr.Namespace, deploy)
 		if err != nil {
-			return resized, infeasible, err
+			return res, err
 		}
 
 		publishReclaimableMetrics(dr, deploy.Name, pods, targets)
 
+		// Cooldowns are stamped once per workload AFTER the pass, so every
+		// pod of the workload resizes in the same pass; the cooldown then
+		// spaces passes, not sibling pods.
 		cooldownKey := dr.Namespace + "/" + deploy.Name
+		resizedDirections := map[actuator.Direction]bool{}
+		// At most one eviction per workload per pass: recreate one pod,
+		// let it settle, keep the rest serving.
+		evictBudget := 1
+		recreateMode := dr.Spec.UpdateMode == autoscalingv1alpha1.UpdateModeInPlaceOrRecreate
 		for j := range pods {
 			pod := &pods[j]
 			if pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodRunning {
 				continue
 			}
+
+			// Evict-and-recreate fallback: for resizes in-place can never do
+			// (node too small, or Guaranteed memory shrink), evict via the
+			// Eviction API; the pod webhook injects the recommendation into
+			// the replacement at admission.
+			if recreateMode && (podResizeInfeasible(pod) || actuator.BlockedMemoryShrink(pod, targets, policy)) {
+				if !r.WebhookEnabled {
+					res.recreateBlocked = true
+					continue
+				}
+				if evictBudget == 0 ||
+					!r.Cooldowns.Allow(cooldownKey, actuator.DirectionDown, cooldownFor(&dr.Spec, actuator.DirectionDown), now) {
+					continue
+				}
+				if err := r.Resizer.Evict(ctx, dr.Namespace, pod.Name); err != nil {
+					if errors.Is(err, actuator.ErrRateLimited) {
+						continue
+					}
+					// PDB may forbid the eviction right now; retry next pass.
+					log.V(1).Info("eviction rejected, will retry", "pod", pod.Name, "error", err.Error())
+					continue
+				}
+				evictBudget--
+				res.resized++
+				resizedDirections[actuator.DirectionDown] = true
+				resizesTotal.WithLabelValues(dr.Namespace, deploy.Name, string(actuator.DirectionDown)).Inc()
+				r.Recorder.Eventf(dr, nil, "Normal", "PodEvictedForResize", "Reconcile",
+					"evicted pod %s: resize impossible in-place, replacement gets recommendation via webhook", pod.Name)
+				continue
+			}
+
 			if podResizeInfeasible(pod) {
-				infeasible = append(infeasible, pod.Name)
+				res.infeasible = append(res.infeasible, pod.Name)
 				continue
 			}
 
@@ -106,9 +155,9 @@ func (r *DynamicResourceReconciler) actuate(ctx context.Context, dr *autoscaling
 						if errors.Is(err, actuator.ErrRateLimited) {
 							continue
 						}
-						return resized, infeasible, err
+						return res, err
 					}
-					resized++
+					res.resized++
 					resizesTotal.WithLabelValues(dr.Namespace, deploy.Name, string(actuator.DirectionUp)).Inc()
 					r.Recorder.Eventf(dr, nil, "Warning", "OOMFastPath", "Reconcile",
 						"bumped memory of pod %s after OOMKill (containers: %v)", pod.Name, oomContainers)
@@ -129,23 +178,26 @@ func (r *DynamicResourceReconciler) actuate(ctx context.Context, dr *autoscaling
 					log.V(1).Info("resize skipped: cluster-wide rate limit", "pod", pod.Name)
 					continue
 				}
-				return resized, infeasible, err
+				return res, err
 			}
-			r.Cooldowns.Record(cooldownKey, plan.Direction, now)
-			resized++
+			resizedDirections[plan.Direction] = true
+			res.resized++
 			resizesTotal.WithLabelValues(dr.Namespace, deploy.Name, string(plan.Direction)).Inc()
 			log.V(1).Info("resized pod", "pod", pod.Name, "direction", plan.Direction)
+		}
+		for direction := range resizedDirections {
+			r.Cooldowns.Record(cooldownKey, direction, now)
 		}
 	}
 
 	dr.Status.HPAState = hpaState
-	if resized > 0 {
+	if res.resized > 0 {
 		dr.Status.LastResizeTime = &metav1.Time{Time: now}
 		markApplied(dr, recByWorkload)
 		r.Recorder.Eventf(dr, nil, "Normal", "PodsResized", "Reconcile",
-			"resized %d pod(s) in-place", resized)
+			"resized %d pod(s) in-place or via recreate", res.resized)
 	}
-	return resized, infeasible, nil
+	return res, nil
 }
 
 // coordinateHPA applies the coupled-loop guards for one workload:

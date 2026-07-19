@@ -63,15 +63,21 @@ type DynamicResourceReconciler struct {
 	// ResizeSupported is detected once at startup: kube-apiserver 1.33+
 	// exposes the Pod resize subresource.
 	ResizeSupported bool
+	// WebhookEnabled mirrors --enable-pod-webhook; evict-and-recreate is only
+	// useful when the webhook injects recommendations into replacement pods.
+	WebhookEnabled bool
 }
 
 // +kubebuilder:rbac:groups=autoscaling.kubera.io,resources=dynamicresources,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=autoscaling.kubera.io,resources=dynamicresources/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=autoscaling.kubera.io,resources=dynamicresources/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods/resize,verbs=patch
+// +kubebuilder:rbac:groups="",resources=pods/eviction,verbs=create
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods,verbs=get;list
 
@@ -145,6 +151,12 @@ func (r *DynamicResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 		return ctrl.Result{}, err
 	}
+	if len(recs) == 0 && len(dr.Status.Recommendations) > 0 {
+		// Metrics gap (pods just recreated or restarting): keep the last
+		// known recommendations instead of wiping them; the webhook and
+		// actuation depend on them staying available through churn.
+		recs = dr.Status.Recommendations
+	}
 	publishRecommendationMetrics(&dr, recs)
 	if !equality.Semantic.DeepEqual(dr.Status.Recommendations, recs) {
 		dr.Status.Recommendations = recs
@@ -158,21 +170,27 @@ func (r *DynamicResourceReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			r.setCondition(&dr, autoscalingv1alpha1.ConditionResizeInfeasible, metav1.ConditionTrue,
 				"ClusterUnsupported", "cluster does not support the Pod resize subresource (needs Kubernetes 1.33+)")
 		default:
-			resized, infeasible, actErr := r.actuate(ctx, &dr, matched, dr.Status.Recommendations, usage)
+			result, actErr := r.actuate(ctx, &dr, matched, dr.Status.Recommendations, usage)
 			if actErr != nil {
 				if _, patchErr := r.patchStatus(ctx, orig, &dr, ctrl.Result{}); patchErr != nil {
 					return ctrl.Result{}, patchErr
 				}
 				return ctrl.Result{}, actErr
 			}
-			if len(infeasible) > 0 {
+			switch {
+			case result.recreateBlocked:
 				r.setCondition(&dr, autoscalingv1alpha1.ConditionResizeInfeasible, metav1.ConditionTrue,
-					"NodeCapacity", fmt.Sprintf("resize infeasible for pod(s): %v", infeasible))
-			} else {
+					"RecreateRequiresWebhook",
+					"pods need evict-and-recreate to converge, but the pod webhook is disabled; "+
+						"start the operator with --enable-pod-webhook (recreated pods would otherwise inherit stale template resources)")
+			case len(result.infeasible) > 0:
+				r.setCondition(&dr, autoscalingv1alpha1.ConditionResizeInfeasible, metav1.ConditionTrue,
+					"NodeCapacity", fmt.Sprintf("resize infeasible for pod(s): %v", result.infeasible))
+			default:
 				r.setCondition(&dr, autoscalingv1alpha1.ConditionResizeInfeasible, metav1.ConditionFalse,
 					"Feasible", "no infeasible resizes")
 			}
-			log.V(1).Info("actuation pass", "resized", resized, "infeasible", len(infeasible))
+			log.V(1).Info("actuation pass", "resized", result.resized, "infeasible", len(result.infeasible))
 		}
 	}
 

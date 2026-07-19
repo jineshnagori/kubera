@@ -45,6 +45,13 @@ const (
 	// buckets are ~5% wide, so 10m / 1Mi steps never oscillate.
 	cpuRoundingMilli = 10
 	memRoundingBytes = 1024 * 1024
+
+	// minMemoryRecommendationBytes is an absolute floor under every memory
+	// recommendation, regardless of spec bounds. Recommendations become
+	// LIMITS on Guaranteed pods; sizing a limit at P95+10% of a tiny idle
+	// working set OOMKills the container on any spike (VPA guards the same
+	// way with a 250Mi default floor).
+	minMemoryRecommendationBytes = 32 * 1024 * 1024
 )
 
 // ContainerUsageSnapshot is the latest observed mean usage per container of a
@@ -117,7 +124,7 @@ func (r *DynamicResourceReconciler) computeRecommendations(ctx context.Context, 
 				cpuBounds,
 			)
 			mem := clampQuantity(
-				roundUpBytes(raw.MemBytes*safetyMarginFactor, memRoundingBytes),
+				roundUpBytes(max(raw.MemBytes*safetyMarginFactor, minMemoryRecommendationBytes), memRoundingBytes),
 				memBounds,
 			)
 

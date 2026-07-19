@@ -47,6 +47,10 @@ what HPA sees:
   of the above (bounded by the configured max).
 - `Infeasible` resizes (node too small) are surfaced as a status condition
   and not retried until topology changes.
+- `InPlaceOrRecreate` falls back to eviction (PDB-respecting, one pod per
+  workload per pass) for resizes in-place can never do — Infeasible, or
+  Guaranteed memory shrink. Gated on the pod webhook: replacements must be
+  born with the recommendation or eviction is pointless.
 - A cluster-wide token bucket (`--max-resizes-per-minute`) prevents
   thundering herds.
 
