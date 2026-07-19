@@ -333,7 +333,7 @@ helm install kubera oci://ghcr.io/jineshnagori/charts/kubera \
 ```
 
 The chart's default image is `ghcr.io/jineshnagori/kubera`; pin a version with
-`--set controllerManager.container.image.tag=v0.1.0`.
+`--set controllerManager.container.image.tag=v0.1.1`.
 
 ### 1b. Alternative: build from source
 
@@ -440,8 +440,9 @@ kubectl describe dynamicresource demo-api-policy   # RecommendationUpdated, Pods
 | `--max-resizes-per-minute` | `30` | Cluster-wide resize rate cap |
 | `--enable-pod-webhook` | `false` | Inject recommendations into new Pods (needs cert-manager; `--set webhook.enable=true --set certmanager.enable=true` in Helm) |
 
-More: `docs/getting-started.md`, `docs/architecture.md`. Grafana dashboard:
-`dist/grafana/kubera-dashboard.json`.
+Full documentation: **https://kubera.jineshnagori.in** (installation,
+DynamicResource reference, HPA coordination, troubleshooting). Grafana
+dashboard: `dist/grafana/kubera-dashboard.json`.
 
 ### Uninstall
 
