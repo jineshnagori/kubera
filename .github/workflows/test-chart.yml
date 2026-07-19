@@ -3,6 +3,8 @@ name: Test Chart
 on:
   push:
   pull_request:
+    branches:
+      - master
 
 permissions: {}
 
