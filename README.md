@@ -441,20 +441,3 @@ More: `docs/getting-started.md`, `docs/architecture.md`. Grafana dashboard:
 ```sh
 helm uninstall kubera -n kubera-system    # or: make undeploy
 ```
-
----
-
-## Releasing
-
-Pushing a tag `v*` runs `.github/workflows/release.yml`, which publishes:
-
-- `ghcr.io/jineshnagori/kubera:<tag>` + `:latest` (linux/amd64, linux/arm64)
-- Helm chart `oci://ghcr.io/jineshnagori/charts/kubera` (chart version = tag
-  without the `v`)
-
-```sh
-git tag v0.1.0 && git push origin v0.1.0
-```
-
-Make the GHCR packages public in the repository's package settings after the
-first release so `helm install` works without registry credentials.
