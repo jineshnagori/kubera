@@ -298,42 +298,163 @@ charts/kubera/           Helm chart
 
 ---
 
-## Roadmap
+## Installation
 
-| Milestone | Scope | Status |
-|-----------|-------|--------|
-| **M0** | Kubebuilder scaffold, CRD `v1alpha1` (namespaced), RBAC, CI, Helm skeleton | ✅ |
-| **M1** | Recommend-only mode: metrics-server provider, histogram recommender, status recommendations, Events | ✅ |
-| **M2** | Actuation: resize subresource, feature detection, QoS/step/tolerance guards, cooldowns, kind e2e | ✅ |
-| **M3** | HPA cooperation: coupled-loop math, headroom, pause-on-scaling, `hpaState` | ✅ |
-| **M4** | Hardening: OOM fast path, Prometheus provider, rate limits, VPA conflict detection, mutating webhook | ✅ |
-| **M5** | Polish: kubectl plugin (`kubectl kubera diff`), Grafana dashboard, cost metrics, docs | ✅ |
+### Prerequisites
 
-See `docs/getting-started.md` and `docs/architecture.md`. Operator flags:
-`--prometheus-url`, `--max-resizes-per-minute` (default 30),
-`--enable-pod-webhook`.
+- Kubernetes **1.33+** — in-place resize needs the Pod `resize` subresource
+  (`kubectl version` to check the server). On older clusters KubeRA still
+  runs in recommend-only mode and reports `ResizeInfeasible: ClusterUnsupported`.
+- **Metrics Server** installed (most managed clusters ship it; kind does not):
+
+  ```sh
+  kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+  # kind / self-signed kubelets only:
+  kubectl -n kube-system patch deployment metrics-server --type=json \
+    -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+  ```
+
+### 1. Install from the GitHub registry (recommended)
+
+Every tagged release publishes a multi-arch image (amd64 + arm64) and an OCI
+Helm chart to GitHub Container Registry — nothing to build locally:
+
+```sh
+helm install kubera oci://ghcr.io/jineshnagori/charts/kubera \
+  --version 0.1.0 \
+  -n kubera-system --create-namespace
+```
+
+The chart's default image is `ghcr.io/jineshnagori/kubera`; pin a version with
+`--set controllerManager.container.image.tag=v0.1.0`.
+
+### 1b. Alternative: build from source
+
+```sh
+make docker-build docker-push IMG=<your-registry>/kubera:dev
+helm install kubera dist/chart -n kubera-system --create-namespace \
+  --set controllerManager.container.image.repository=<your-registry>/kubera \
+  --set controllerManager.container.image.tag=dev
+```
+
+kind shortcut (no registry needed):
+
+```sh
+kind create cluster --name kubera
+make docker-build IMG=kubera:dev
+kind load docker-image kubera:dev --name kubera
+helm install kubera dist/chart -n kubera-system --create-namespace \
+  --set controllerManager.container.image.repository=kubera \
+  --set controllerManager.container.image.tag=dev
+```
+
+Or kustomize: `make deploy IMG=<your-registry>/kubera:dev`.
+
+### 2. Verify
+
+```sh
+kubectl -n kubera-system get pods
+kubectl get crd dynamicresources.autoscaling.kubera.io
+```
+
+### 3. Test on a real workload
+
+Deploy a deliberately oversized demo app:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  labels: { app: demo-api }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: demo-api } }
+  template:
+    metadata: { labels: { app: demo-api } }
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.27
+        resizePolicy:                     # required for in-place resize
+        - { resourceName: cpu,    restartPolicy: NotRequired }
+        - { resourceName: memory, restartPolicy: NotRequired }
+        resources:
+          requests: { cpu: 500m, memory: 512Mi }   # idle nginx needs ~5m
+          limits:   { cpu: 1,    memory: 1Gi }
+```
+
+Start recommend-only (safe, touches nothing):
+
+```yaml
+apiVersion: autoscaling.kubera.io/v1alpha1
+kind: DynamicResource
+metadata:
+  name: demo-api-policy
+spec:
+  selector:
+    matchLabels: { app: demo-api }
+  updateMode: "Off"
+  resources:
+    cpu:    { min: 50m,  max: 1000m }
+    memory: { min: 64Mi, max: 1Gi }
+```
+
+Watch recommendations appear (1–2 polling intervals):
+
+```sh
+kubectl get dynamicresource demo-api-policy -o jsonpath='{.status.recommendations}' | jq
+kubectl kubera diff          # or: make build-plugin && ./bin/kubectl-kubera diff
+```
+
+Then enable actuation and watch the live resize:
+
+```sh
+kubectl patch dynamicresource demo-api-policy --type=merge \
+  -p '{"spec":{"updateMode":"InPlaceOnly"}}'
+
+kubectl get pods -l app=demo-api \
+  -o custom-columns='POD:.metadata.name,CPU:.spec.containers[0].resources.requests.cpu,MEM:.spec.containers[0].resources.requests.memory,RESTARTS:.status.containerStatuses[0].restartCount' -w
+```
+
+Requests step down toward usage (max 20%/step, 10m cooldown between
+down-steps) with **RESTARTS staying 0** — that is the in-place resize.
+Events tell the story:
+
+```sh
+kubectl describe dynamicresource demo-api-policy   # RecommendationUpdated, PodsResized
+```
+
+### Operator flags
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--prometheus-url` | (empty) | Enable `provider: Prometheus` (needs kube-state-metrics) |
+| `--max-resizes-per-minute` | `30` | Cluster-wide resize rate cap |
+| `--enable-pod-webhook` | `false` | Inject recommendations into new Pods (needs cert-manager; `--set webhook.enable=true --set certmanager.enable=true` in Helm) |
+
+More: `docs/getting-started.md`, `docs/architecture.md`. Grafana dashboard:
+`dist/grafana/kubera-dashboard.json`.
+
+### Uninstall
+
+```sh
+helm uninstall kubera -n kubera-system    # or: make undeploy
+```
 
 ---
 
-## Tech Stack
+## Releasing
 
-- Go
-- Kubebuilder / controller-runtime
-- Kubernetes 1.33+ (in-place resize via `resize` subresource)
-- Metrics Server / Prometheus
-- Helm
-- GitHub Actions
+Pushing a tag `v*` runs `.github/workflows/release.yml`, which publishes:
 
----
+- `ghcr.io/jineshnagori/kubera:<tag>` + `:latest` (linux/amd64, linux/arm64)
+- Helm chart `oci://ghcr.io/jineshnagori/charts/kubera` (chart version = tag
+  without the `v`)
 
-## Deliverables
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
 
-- Production-ready Kubernetes Operator
-- Namespaced CRD (`autoscaling.kubera.io/v1alpha1`, `DynamicResource`)
-- Controller implementation
-- HPA coordination engine
-- In-place resize implementation with safety guards
-- Metrics abstraction layer (Metrics Server, Prometheus)
-- Helm chart + RBAC
-- Unit, envtest, and kind e2e tests
-- Documentation
+Make the GHCR packages public in the repository's package settings after the
+first release so `helm install` works without registry credentials.

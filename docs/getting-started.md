@@ -8,6 +8,15 @@
 
 ## Install
 
+From the GitHub registry (published on every tagged release):
+
+```sh
+helm install kubera oci://ghcr.io/jineshnagori/charts/kubera \
+  --version 0.1.0 -n kubera-system --create-namespace
+```
+
+From source:
+
 ```sh
 helm install kubera ./dist/chart -n kubera-system --create-namespace
 ```
