@@ -68,6 +68,11 @@ metrics:
 prometheus:
   enable: false
 
+# [WEBHOOK]: To deploy the pod mutating webhook set true (also pass
+# --enable-pod-webhook to the manager and enable cert-manager below).
+webhook:
+  enable: false
+
 # [CERT-MANAGER]: To enable cert-manager injection to webhooks set true
 certmanager:
   enable: false

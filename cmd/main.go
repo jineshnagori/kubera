@@ -35,6 +35,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	"golang.org/x/time/rate"
 	"k8s.io/client-go/discovery"
 	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 
@@ -43,6 +44,7 @@ import (
 	"github.com/jineshnagori/kubera/internal/controller"
 	kuberametrics "github.com/jineshnagori/kubera/internal/metrics"
 	"github.com/jineshnagori/kubera/internal/recommender"
+	kuberawebhook "github.com/jineshnagori/kubera/internal/webhook"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -67,6 +69,9 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var prometheusURL string
+	var maxResizesPerMinute int
+	var enablePodWebhook bool
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -85,6 +90,13 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&prometheusURL, "prometheus-url", "",
+		"Base URL of a Prometheus API serving container usage metrics (enables provider: Prometheus). "+
+			"Requires kube-state-metrics for the kube_pod_labels join.")
+	flag.IntVar(&maxResizesPerMinute, "max-resizes-per-minute", 30,
+		"Cluster-wide cap on in-place pod resizes per minute (thundering-herd protection).")
+	flag.BoolVar(&enablePodWebhook, "enable-pod-webhook", false,
+		"Register the mutating pod webhook that injects current recommendations into new pods.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -202,18 +214,35 @@ func main() {
 	}
 	setupLog.Info("in-place pod resize support", "supported", resizeSupported)
 
+	var prometheusProvider kuberametrics.Provider
+	if prometheusURL != "" {
+		prometheusProvider = kuberametrics.NewPrometheusProvider(prometheusURL)
+		setupLog.Info("Prometheus metrics provider enabled", "url", prometheusURL)
+	}
+
+	limiter := rate.NewLimiter(rate.Limit(float64(maxResizesPerMinute)/60.0), max(1, maxResizesPerMinute/6))
+
 	if err := (&controller.DynamicResourceReconciler{
-		Client:          mgr.GetClient(),
-		Scheme:          mgr.GetScheme(),
-		Recorder:        mgr.GetEventRecorder("kubera"),
-		Metrics:         kuberametrics.NewMetricsServerProvider(metricsClientset),
-		Recommender:     recommender.New(),
-		Resizer:         &actuator.Resizer{Client: mgr.GetClient()},
-		Cooldowns:       actuator.NewCooldownTracker(),
-		ResizeSupported: resizeSupported,
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		Recorder:          mgr.GetEventRecorder("kubera"),
+		Metrics:           kuberametrics.NewMetricsServerProvider(metricsClientset),
+		PrometheusMetrics: prometheusProvider,
+		Recommender:       recommender.New(),
+		Resizer:           &actuator.Resizer{Client: mgr.GetClient(), Limiter: limiter},
+		Cooldowns:         actuator.NewCooldownTracker(),
+		ResizeSupported:   resizeSupported,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "dynamicresource")
 		os.Exit(1)
+	}
+
+	if enablePodWebhook {
+		if err := (&kuberawebhook.PodResourceDefaulter{Client: mgr.GetClient()}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "Failed to register pod webhook")
+			os.Exit(1)
+		}
+		setupLog.Info("pod mutating webhook registered")
 	}
 	// +kubebuilder:scaffold:builder
 

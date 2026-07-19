@@ -300,14 +300,18 @@ charts/kubera/           Helm chart
 
 ## Roadmap
 
-| Milestone | Scope |
-|-----------|-------|
-| **M0** | Kubebuilder scaffold, CRD `v1alpha1` (namespaced), RBAC, CI, Helm skeleton |
-| **M1** | Recommend-only mode: metrics-server provider, histogram recommender, status recommendations, Events |
-| **M2** | Actuation: resize subresource, feature detection, QoS/step/tolerance guards, cooldowns, kind e2e |
-| **M3** | HPA cooperation: coupled-loop math, headroom, pause-on-scaling, `hpaState` |
-| **M4** | Hardening: OOM fast path, Prometheus provider, rate limits, VPA conflict detection, mutating webhook |
-| **M5** | Polish: kubectl plugin (`kubectl kubera diff`), Grafana dashboard, cost metrics, docs site |
+| Milestone | Scope | Status |
+|-----------|-------|--------|
+| **M0** | Kubebuilder scaffold, CRD `v1alpha1` (namespaced), RBAC, CI, Helm skeleton | ✅ |
+| **M1** | Recommend-only mode: metrics-server provider, histogram recommender, status recommendations, Events | ✅ |
+| **M2** | Actuation: resize subresource, feature detection, QoS/step/tolerance guards, cooldowns, kind e2e | ✅ |
+| **M3** | HPA cooperation: coupled-loop math, headroom, pause-on-scaling, `hpaState` | ✅ |
+| **M4** | Hardening: OOM fast path, Prometheus provider, rate limits, VPA conflict detection, mutating webhook | ✅ |
+| **M5** | Polish: kubectl plugin (`kubectl kubera diff`), Grafana dashboard, cost metrics, docs | ✅ |
+
+See `docs/getting-started.md` and `docs/architecture.md`. Operator flags:
+`--prometheus-url`, `--max-resizes-per-minute` (default 30),
+`--enable-pod-webhook`.
 
 ---
 
