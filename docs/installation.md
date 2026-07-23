@@ -30,7 +30,7 @@ chart:
 
 ```sh
 helm install kubera oci://ghcr.io/jineshnagori/charts/kubera \
-  --version 0.1.0 \
+  --version 0.1.1 \
   -n kubera-system --create-namespace
 ```
 
@@ -51,14 +51,14 @@ Needs cert-manager installed, then:
 
 ```sh
 helm upgrade kubera oci://ghcr.io/jineshnagori/charts/kubera \
-  --version 0.1.0 -n kubera-system \
+  --version 0.1.1 -n kubera-system \
   --set webhook.enable=true \
   --set certmanager.enable=true
 ```
 
 This deploys the `MutatingWebhookConfiguration`, webhook Service, serving
 certificate, and passes `--enable-pod-webhook` to the manager. The webhook
-uses `failurePolicy: Ignore` — Pod creation is never blocked by KubeRA being
+uses `failurePolicy: Ignore`: Pod creation is never blocked by KubeRA being
 down.
 
 ## Operator flags
@@ -96,7 +96,7 @@ helm install kubera dist/chart -n kubera-system --create-namespace \
   --set controllerManager.container.image.tag=dev
 ```
 
-## First workload — safe adoption path
+## First workload: safe adoption path
 
 **1.** Add `resizePolicy` to the workload (one-time rollout; without it the
 kubelet restarts containers on resize):
@@ -140,7 +140,7 @@ kubectl patch dynamicresource api-policy --type=merge \
   -p '{"spec":{"updateMode":"InPlaceOnly"}}'
 ```
 
-Watch it live — requests converge, `RESTARTS` stays 0:
+Watch it live: requests converge, `RESTARTS` stays 0:
 
 ```sh
 kubectl get pods -l app=api -w \

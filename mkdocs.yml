@@ -1,5 +1,5 @@
 site_name: KubeRA
-site_description: Kubernetes Resource Allocator — vertical-first, HPA-cooperative autoscaling with in-place Pod resize
+site_description: "Kubernetes Resource Allocator: vertical-first, HPA-cooperative autoscaling with in-place Pod resize"
 site_url: https://kubera.jineshnagori.in
 repo_url: https://github.com/jineshnagori/kubera
 repo_name: jineshnagori/kubera
@@ -36,9 +36,11 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Why KubeRA: why-kubera.md
   - Installation: installation.md
   - DynamicResource Reference: dynamicresource.md
   - HPA Coordination: hpa-coordination.md
+  - Benchmark (HPA + Load Test): benchmark-hpa-load-test.md
   - Architecture: architecture.md
   - Observability: observability.md
   - Troubleshooting: troubleshooting.md
