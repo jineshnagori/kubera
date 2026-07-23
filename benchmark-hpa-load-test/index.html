@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://kubera.jineshnagori.in/architecture/">
+        <link rel="canonical" href="https://kubera.jineshnagori.in/benchmark-hpa-load-test/">
       
       
-        <link rel="prev" href="../benchmark-hpa-load-test/">
+        <link rel="prev" href="../hpa-coordination/">
       
       
-        <link rel="next" href="../observability/">
+        <link rel="next" href="../architecture/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Architecture - KubeRA</title>
+        <title>Benchmark (HPA + Load Test) - KubeRA</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#architecture" class="md-skip">
+        <a href="#benchmarking-kubera-hpa-under-load" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Architecture
+              Benchmark (HPA + Load Test)
             
           </span>
         </div>
@@ -392,33 +392,6 @@
       
   
   
-  
-  
-    <li class="md-nav__item">
-      <a href="../benchmark-hpa-load-test/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Benchmark (HPA + Load Test)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
     
   
   
@@ -438,7 +411,7 @@
   <span class="md-ellipsis">
     
   
-    Architecture
+    Benchmark (HPA + Load Test)
   
 
     
@@ -456,7 +429,7 @@
   <span class="md-ellipsis">
     
   
-    Architecture
+    Benchmark (HPA + Load Test)
   
 
     
@@ -482,10 +455,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#hpa-coordination-coupled-loop-math" class="md-nav__link">
+  <a href="#setup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        HPA coordination (coupled-loop math)
+        Setup
       
     </span>
   </a>
@@ -493,10 +466,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#in-place-resize-safety" class="md-nav__link">
+  <a href="#capture-the-data" class="md-nav__link">
     <span class="md-ellipsis">
       
-        In-place resize safety
+        Capture the data
       
     </span>
   </a>
@@ -504,10 +477,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#spec-drift-the-pod-webhook" class="md-nav__link">
+  <a href="#headline-numbers-to-pull" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Spec drift &amp; the pod webhook
+        Headline numbers to pull
       
     </span>
   </a>
@@ -515,10 +488,54 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#state" class="md-nav__link">
+  <a href="#reading-the-cpumemory-trend" class="md-nav__link">
     <span class="md-ellipsis">
       
-        State
+        Reading the CPU/memory trend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-the-oom-fast-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking the OOM fast path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-batched-resizes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking batched resizes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-the-vertical-first-handoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking the vertical-first handoff
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interpreting-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpreting the result
       
     </span>
   </a>
@@ -529,6 +546,33 @@
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -614,10 +658,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#hpa-coordination-coupled-loop-math" class="md-nav__link">
+  <a href="#setup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        HPA coordination (coupled-loop math)
+        Setup
       
     </span>
   </a>
@@ -625,10 +669,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#in-place-resize-safety" class="md-nav__link">
+  <a href="#capture-the-data" class="md-nav__link">
     <span class="md-ellipsis">
       
-        In-place resize safety
+        Capture the data
       
     </span>
   </a>
@@ -636,10 +680,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#spec-drift-the-pod-webhook" class="md-nav__link">
+  <a href="#headline-numbers-to-pull" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Spec drift &amp; the pod webhook
+        Headline numbers to pull
       
     </span>
   </a>
@@ -647,10 +691,54 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#state" class="md-nav__link">
+  <a href="#reading-the-cpumemory-trend" class="md-nav__link">
     <span class="md-ellipsis">
       
-        State
+        Reading the CPU/memory trend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-the-oom-fast-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking the OOM fast path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-batched-resizes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking batched resizes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-the-vertical-first-handoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking the vertical-first handoff
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interpreting-the-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpreting the result
       
     </span>
   </a>
@@ -677,67 +765,142 @@
   
 
 
-<h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
-<p>Single binary, one reconciler, three cooperating stages plus an optional
-admission webhook.</p>
-<div class="highlight"><pre><span></span><code>Reconcile(DynamicResource)
-  1. Guards        validate bounds; resolve selector (same-namespace
-                   Deployments); DynamicResource overlap (oldest wins);
-                   VPA conflict (refuse to fight VPA)
-  2. Recommend     provider (Metrics Server | Prometheus) → decaying
-                   histograms → P90 CPU / P95 memory → +10% margin →
-                   round → clamp to bounds → status.recommendations
-  3. Actuate       (updateMode != Off, cluster ≥1.33)
-                   HPA coordination → per-pod plan (QoS, tolerance,
-                   step caps, memory-decrease rule) → cooldowns →
-                   cluster-wide rate limit → resize subresource PATCH
+<h1 id="benchmarking-kubera-hpa-under-load">Benchmarking KubeRA + HPA under load<a class="headerlink" href="#benchmarking-kubera-hpa-under-load" title="Permanent link">&para;</a></h1>
+<p>A methodology for measuring KubeRA's behavior on a real cluster under load:
+what to run, what to grep from the controller-manager log, and how to read
+the numbers. Every command below works against any KubeRA installation: pair
+it with
+<a href="https://github.com/jineshnagori/kubera/blob/main/examples/demo.yml"><code>examples/demo.yml</code></a>
+or your own workload.</p>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Workload: any CPU-load-generating image works for this exercise. The
+  canonical choice is <code>registry.k8s.io/hpa-example</code>, which burns CPU
+  proportional to request rate: idle static content (e.g. plain nginx) won't
+  move under a curl loop and can't demonstrate scaling.</li>
+<li><code>DynamicResource</code>: <code>updateMode: InPlaceOrRecreate</code> (or <code>InPlaceOnly</code>),
+  <code>cpu</code>/<code>memory</code> bounds sized to the workload, short cooldowns and polling
+  interval for a faster feedback loop during testing (defaults are slower and
+  intended for production).</li>
+<li><code>HorizontalPodAutoscaler</code>: a CPU utilization target, with <code>cpu.max</code> on the
+  <code>DynamicResource</code> kept under the request level that trips that target: see
+  <a href="../hpa-coordination/">HPA Coordination</a> for how the two interact.</li>
+<li>Load generator, run <strong>inside</strong> the cluster (a ClusterIP Service's DNS name
+  doesn't resolve from outside it):
+  <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>run<span class="w"> </span>load-gen<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--restart<span class="o">=</span>Never<span class="w"> </span>--image<span class="o">=</span>curlimages/curl<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;for i in $(seq 1 10000); do</span>
+<span class="s1">    curl -s -o /dev/null -w &quot;%{http_code}\n&quot; http://&lt;service&gt;/</span>
+<span class="s1">    sleep 0.0001</span>
+<span class="s1">  done | sort | uniq -c&#39;</span>
 </code></pre></div>
-<h2 id="hpa-coordination-coupled-loop-math">HPA coordination (coupled-loop math)<a class="headerlink" href="#hpa-coordination-coupled-loop-math" title="Permanent link">&para;</a></h2>
-<p>HPA's resource metric is <code>usage / requests</code>: KubeRA changing requests changes
-what HPA sees:</p>
-<ul>
-<li><strong>Up</strong>: raising requests lowers observed utilization; HPA stays quiet.
-  That is the vertical-first gating.</li>
-<li><strong>Down</strong>: lowering requests raises observed utilization. Before any downward
-  resize KubeRA computes the post-resize utilization and floors the new
-  request at <code>usage × 100 / (target − headroom)</code> so HPA is never re-triggered
-  by a KubeRA action.</li>
-<li>While the HPA is actively scaling (<code>desiredReplicas != currentReplicas</code> or
-  a recent <code>lastScaleTime</code>), all vertical actuation pauses.</li>
-<li>When recommendations pin at the configured CPU max, <code>status.hpaState</code>
-  becomes <code>AtMaxVertical</code>: HPA takes over replica scaling.</li>
+  Run it in waves over tens of minutes to see both scale-up and scale-down
+  behavior, not just one spike.</li>
 </ul>
-<h2 id="in-place-resize-safety">In-place resize safety<a class="headerlink" href="#in-place-resize-safety" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Resizes go through the Pod <code>resize</code> subresource only (1.33+, detected at
-  startup via the discovery API).</li>
-<li>QoS class never changes: BestEffort Pods are skipped, Guaranteed Pods keep
-  requests == limits, Burstable limit/request ratios are preserved.</li>
-<li>Memory limits never decrease in-place (kubelet requires a container restart
-  for that); Guaranteed Pods therefore cannot shrink memory at all.</li>
-<li>Tolerance band (±10%) and per-direction step caps (50% up / 20% down)
-  prevent flapping; per-direction cooldowns (2m up / 10m down) space resizes.</li>
-<li>OOMKilled containers get an immediate 1.5× memory bump that bypasses all
-  of the above (bounded by the configured max).</li>
-<li><code>Infeasible</code> resizes (node too small) are surfaced as a status condition
-  and not retried until topology changes.</li>
-<li><code>InPlaceOrRecreate</code> falls back to eviction (PDB-respecting, one pod per
-  workload per pass) for resizes in-place can never do: Infeasible, or
-  Guaranteed memory shrink. Gated on the pod webhook: replacements must be
-  born with the recommendation or eviction is pointless.</li>
-<li>A cluster-wide token bucket (<code>--max-resizes-per-minute</code>) prevents
-  thundering herds.</li>
-</ul>
-<h2 id="spec-drift-the-pod-webhook">Spec drift &amp; the pod webhook<a class="headerlink" href="#spec-drift-the-pod-webhook" title="Permanent link">&para;</a></h2>
-<p>KubeRA patches Pods, not Deployment templates. New Pods (rollouts, HPA
-scale-out) are born with template values. With <code>--enable-pod-webhook</code>, a
-mutating webhook (failurePolicy=Ignore) injects the current recommendation at
-Pod admission, so new Pods start right-sized. Without it, new Pods are
-re-optimized within a few polling intervals.</p>
-<h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
-<p>All recommender state (histograms) is in-memory and rebuilds within a few
-polling intervals after a restart. Cooldowns also reset on restart; worst
-case one early resize. Leader election guarantees a single actuator.</p>
+<h2 id="capture-the-data">Capture the data<a class="headerlink" href="#capture-the-data" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>examples/demo.yml
+kubectl<span class="w"> </span>-n<span class="w"> </span>kubera-system<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>deploy/kubera-controller-manager<span class="w"> </span>&gt;<span class="w"> </span>run.log<span class="w"> </span><span class="p">&amp;</span>
+<span class="c1"># drive load with the loop above, in waves</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>dynamicresource<span class="w"> </span>&lt;name&gt;<span class="w"> </span>-w
+kubectl<span class="w"> </span>get<span class="w"> </span>hpa<span class="w"> </span>&lt;name&gt;<span class="w"> </span>-w
+</code></pre></div>
+<p>Let it run long enough to see multiple resize cooldowns elapse in both
+directions, then analyze <code>run.log</code>.</p>
+<h2 id="headline-numbers-to-pull">Headline numbers to pull<a class="headerlink" href="#headline-numbers-to-pull" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>grep<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;actuation pass&quot;</span><span class="w"> </span>run.log<span class="w">                              </span><span class="c1"># total reconcile passes</span>
+grep<span class="w"> </span>-oP<span class="w"> </span><span class="s1">&#39;&quot;resized&quot;: \K[0-9]+&#39;</span><span class="w"> </span>run.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span>-n<span class="w"> </span><span class="p">|</span><span class="w"> </span>uniq<span class="w"> </span>-c<span class="w">     </span><span class="c1"># how many pods per pass</span>
+grep<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;OOMFastPath&quot;</span><span class="w"> </span>run.log<span class="w">                                  </span><span class="c1"># OOM fast-path bumps</span>
+grep<span class="w"> </span><span class="s1">&#39;&quot;infeasible&quot;: [1-9]&#39;</span><span class="w"> </span>run.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>wc<span class="w"> </span>-l<span class="w">                      </span><span class="c1"># infeasible resizes</span>
+grep<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;ERROR&quot;</span><span class="w"> </span>run.log<span class="w">                                         </span><span class="c1"># controller errors</span>
+grep<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;forbidden\|rejected event&quot;</span><span class="w"> </span>run.log<span class="w">                     </span><span class="c1"># RBAC issues</span>
+grep<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;Starting manager&quot;</span><span class="w"> </span>run.log<span class="w">                              </span><span class="c1"># unexpected restarts</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>What a healthy run looks like</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Passes that resized 0 pods</td>
+<td>The large majority (tolerance band + cooldowns absorbing noise between real changes)</td>
+</tr>
+<tr>
+<td>Passes that resized ≥1 pod</td>
+<td>Correlates with load transitions, not with every poll tick</td>
+</tr>
+<tr>
+<td>OOM fast-path bumps</td>
+<td>Only during a genuine memory spike; each should be followed by the request staying raised, not repeating indefinitely</td>
+</tr>
+<tr>
+<td>Infeasible resizes</td>
+<td>0 unless a node is genuinely undersized for the recommendation</td>
+</tr>
+<tr>
+<td>Controller errors</td>
+<td>0</td>
+</tr>
+<tr>
+<td>RBAC rejections</td>
+<td>0 (if present, the Helm chart's RBAC needs an upgrade)</td>
+</tr>
+<tr>
+<td>Manager restarts</td>
+<td>0 during the test window</td>
+</tr>
+</tbody>
+</table>
+<p>A high no-op ratio is the number that answers "will this thrash under a
+chatty poll interval?"; it shouldn't, and this is how you prove it on your
+own cluster.</p>
+<h2 id="reading-the-cpumemory-trend">Reading the CPU/memory trend<a class="headerlink" href="#reading-the-cpumemory-trend" title="Permanent link">&para;</a></h2>
+<p>Pull the recommendation over time and compare consecutive values:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>get<span class="w"> </span>dynamicresource<span class="w"> </span>&lt;name&gt;<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.status.recommendations}&#39;</span>
+</code></pre></div>
+<p>Each step up should respect <code>behavior.scaleUp.maxStepPercent</code>; each step down
+should respect <code>behavior.scaleDown.maxStepPercent</code> and be slower than the
+climb (scale-down is deliberately more conservative by default). Cross-check
+against <code>kubectl get pods -w</code> with <code>RESTARTS</code> in the output: a healthy
+in-place resize never increments it.</p>
+<h2 id="checking-the-oom-fast-path">Checking the OOM fast path<a class="headerlink" href="#checking-the-oom-fast-path" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>grep<span class="w"> </span><span class="s2">&quot;OOMFastPath&quot;</span><span class="w"> </span>run.log
+</code></pre></div>
+<p>If a pod's memory request had shrunk during a quiet period and a sudden load
+spike OOMKills it, KubeRA should bump memory 1.5× <strong>within the same
+reconcile</strong> that observes the kill, not on the next poll tick. Confirm the
+timestamp of the bump matches the OOMKill, not several intervals later.</p>
+<h2 id="checking-batched-resizes">Checking batched resizes<a class="headerlink" href="#checking-batched-resizes" title="Permanent link">&para;</a></h2>
+<p>When multiple pods of one workload need a resize in the same pass, they
+should all move together: grep one <code>reconcileID</code> and count <code>"direction"</code>
+log lines plus any <code>OOMFastPath</code> events against the pass's <code>"resized": N</code>
+total; they should add up. If the first pod's cooldown were blocking its
+siblings, you'd see <code>resized: 1</code> repeated across consecutive passes instead
+of one batched pass.</p>
+<h2 id="checking-the-vertical-first-handoff">Checking the vertical-first handoff<a class="headerlink" href="#checking-the-vertical-first-handoff" title="Permanent link">&para;</a></h2>
+<p>Watch <code>status.hpaState</code> across the run. <code>AtMaxVertical</code> should appear only
+once the CPU recommendation is pinned at <code>spec.resources.cpu.max</code> and demand
+is still above target: that's the intended trigger for HPA to take over
+replica scaling.</p>
+<p>If HPA scales out <em>before</em> <code>AtMaxVertical</code> appears, the two thresholds are
+tuned too close together for the load pattern: HPA's utilization target is
+tripping on the still-climbing (lower) request value faster than KubeRA's
+step-capped, cooldown-gated recommendation can reach <code>cpu.max</code>. This is a
+tuning issue, not a coordination bug: the fix is to raise <code>cpu.max</code> relative
+to the HPA target, lower the HPA target, or shorten the scale-up cooldown so
+KubeRA's climb keeps pace with the load. Regardless of tuning, verify
+separately that every <em>downward</em> resize respects the headroom floor: zero
+cases of KubeRA's own shrink re-triggering an HPA scale-out is the property
+that actually matters (see <a href="../hpa-coordination/">HPA Coordination</a>).</p>
+<h2 id="interpreting-the-result">Interpreting the result<a class="headerlink" href="#interpreting-the-result" title="Permanent link">&para;</a></h2>
+<p>If your numbers show a high no-op reconcile ratio, zero infeasible resizes,
+zero errors, zero RBAC rejections, resize batching that adds up, and an OOM
+fast path (if exercised) that fires within the same reconcile as the kill;
+the installation is healthy. Anything short of that on your own cluster is
+worth investigating before relying on <code>InPlaceOnly</code> or <code>InPlaceOrRecreate</code> in
+production; run <code>updateMode: "Off"</code> for longer and compare recommendations
+against real usage first.</p>
 
 
 

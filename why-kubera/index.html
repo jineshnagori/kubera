@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://kubera.jineshnagori.in/architecture/">
+        <link rel="canonical" href="https://kubera.jineshnagori.in/why-kubera/">
       
       
-        <link rel="prev" href="../benchmark-hpa-load-test/">
+        <link rel="prev" href="..">
       
       
-        <link rel="next" href="../observability/">
+        <link rel="next" href="../installation/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Architecture - KubeRA</title>
+        <title>Why KubeRA - KubeRA</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#architecture" class="md-skip">
+        <a href="#why-kubera-and-not-just-vpa" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Architecture
+              Why KubeRA
             
           </span>
         </div>
@@ -284,10 +284,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../why-kubera/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why KubeRA
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -303,6 +330,81 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#vpa-already-does-vertical-scaling-why-another-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        "VPA already does vertical scaling. Why another tool?"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-disruption-doesnt-matter-vpa-respects-pdbs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        "The disruption doesn't matter, VPA respects PDBs"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#well-enable-vpas-in-place-mode-then" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        "We'll enable VPA's in-place mode then"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#so-when-should-we-just-use-vpa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        "So when should we just use VPA?"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-kuberas-recommend-only-mode-shows-you" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What KubeRA's recommend-only mode shows you
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -419,37 +521,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Architecture
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
@@ -465,70 +540,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#hpa-coordination-coupled-loop-math" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        HPA coordination (coupled-loop math)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#in-place-resize-safety" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        In-place resize safety
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#spec-drift-the-pod-webhook" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Spec drift &amp; the pod webhook
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#state" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        State
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -614,10 +625,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#hpa-coordination-coupled-loop-math" class="md-nav__link">
+  <a href="#vpa-already-does-vertical-scaling-why-another-tool" class="md-nav__link">
     <span class="md-ellipsis">
       
-        HPA coordination (coupled-loop math)
+        "VPA already does vertical scaling. Why another tool?"
       
     </span>
   </a>
@@ -625,10 +636,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#in-place-resize-safety" class="md-nav__link">
+  <a href="#the-disruption-doesnt-matter-vpa-respects-pdbs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        In-place resize safety
+        "The disruption doesn't matter, VPA respects PDBs"
       
     </span>
   </a>
@@ -636,10 +647,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#spec-drift-the-pod-webhook" class="md-nav__link">
+  <a href="#well-enable-vpas-in-place-mode-then" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Spec drift &amp; the pod webhook
+        "We'll enable VPA's in-place mode then"
       
     </span>
   </a>
@@ -647,10 +658,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#state" class="md-nav__link">
+  <a href="#so-when-should-we-just-use-vpa" class="md-nav__link">
     <span class="md-ellipsis">
       
-        State
+        "So when should we just use VPA?"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-kuberas-recommend-only-mode-shows-you" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What KubeRA's recommend-only mode shows you
       
     </span>
   </a>
@@ -677,67 +699,142 @@
   
 
 
-<h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
-<p>Single binary, one reconciler, three cooperating stages plus an optional
-admission webhook.</p>
-<div class="highlight"><pre><span></span><code>Reconcile(DynamicResource)
-  1. Guards        validate bounds; resolve selector (same-namespace
-                   Deployments); DynamicResource overlap (oldest wins);
-                   VPA conflict (refuse to fight VPA)
-  2. Recommend     provider (Metrics Server | Prometheus) → decaying
-                   histograms → P90 CPU / P95 memory → +10% margin →
-                   round → clamp to bounds → status.recommendations
-  3. Actuate       (updateMode != Off, cluster ≥1.33)
-                   HPA coordination → per-pod plan (QoS, tolerance,
-                   step caps, memory-decrease rule) → cooldowns →
-                   cluster-wide rate limit → resize subresource PATCH
+<h1 id="why-kubera-and-not-just-vpa">Why KubeRA (and not just VPA)<a class="headerlink" href="#why-kubera-and-not-just-vpa" title="Permanent link">&para;</a></h1>
+<p>A technical comparison against the Vertical Pod Autoscaler, for teams
+deciding whether KubeRA solves a problem VPA doesn't already solve for them.</p>
+<h2 id="vpa-already-does-vertical-scaling-why-another-tool">"VPA already does vertical scaling. Why another tool?"<a class="headerlink" href="#vpa-already-does-vertical-scaling-why-another-tool" title="Permanent link">&para;</a></h2>
+<p>VPA and KubeRA overlap on one component: a recommender using decaying
+histograms over usage. Everything around it differs:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>VPA</th>
+<th>KubeRA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Primary actuation</strong></td>
+<td>Evict and recreate (<code>Recreate</code>/<code>Auto</code> modes). An in-place mode (<code>InPlaceOrRecreate</code>) exists but is alpha, off by default, and falls back to eviction whenever in-place isn't immediately possible</td>
+<td>In-place resize (<code>resize</code> subresource, beta, enabled by default since Kubernetes 1.33) is the primary path. Eviction is an explicit opt-in fallback (<code>InPlaceOrRecreate</code>), gated behind a mutating webhook so replacements are born right-sized</td>
+</tr>
+<tr>
+<td><strong>HPA on CPU/memory</strong></td>
+<td>The <a href="https://kubernetes.io/docs/concepts/workloads/autoscaling/vertical-pod-autoscale/">VPA documentation</a> advises against running VPA and HPA on the same CPU/memory metric: both would react to each other's changes</td>
+<td>Built around this case: downward resizes are floored so the utilization HPA observes doesn't cross a configured target minus headroom; actuation pauses while HPA is actively scaling; a status field signals when vertical scaling is exhausted and HPA should take over</td>
+</tr>
+<tr>
+<td><strong>Targeting</strong></td>
+<td>One <code>VerticalPodAutoscaler</code> object per workload (<code>targetRef</code>)</td>
+<td>A namespaced policy per label selector: one <code>DynamicResource</code> can cover several Deployments sharing a label</td>
+</tr>
+<tr>
+<td><strong>Behavior control</strong></td>
+<td>The updater evicts within PodDisruptionBudget limits</td>
+<td>Per-direction step caps, cooldowns, a tolerance band, and a cluster-wide resize rate limit, configurable per policy</td>
+</tr>
+<tr>
+<td><strong>Disruption on resize</strong></td>
+<td>Each adjustment (outside the alpha in-place mode) recreates the pod</td>
+<td>In-place resizes don't restart the container; this is what the <code>resize</code> subresource is for</td>
+</tr>
+<tr>
+<td><strong>Cost visibility</strong></td>
+<td>Not built in</td>
+<td>Prometheus metrics for recommended vs. currently-requested resources, and a <code>kubectl kubera diff</code> command</td>
+</tr>
+<tr>
+<td><strong>Architecture</strong></td>
+<td>Three components (recommender, updater, admission controller)</td>
+<td>One controller binary, plus an optional webhook</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-disruption-doesnt-matter-vpa-respects-pdbs">"The disruption doesn't matter, VPA respects PDBs"<a class="headerlink" href="#the-disruption-doesnt-matter-vpa-respects-pdbs" title="Permanent link">&para;</a></h2>
+<p>PDBs bound how many pods are evicted at once, not whether a given pod is
+evicted. For workloads with meaningful startup cost (warm caches, JIT
+compilation, long-lived connections, leader-elected singletons), an eviction
+is a real disruption regardless of how many other replicas stay up. In-place
+resize changes the container's cgroup limits without restarting it, so those
+workloads don't pay that cost on every adjustment. For workloads that don't
+have this cost, this distinction doesn't matter much.</p>
+<h2 id="well-enable-vpas-in-place-mode-then">"We'll enable VPA's in-place mode then"<a class="headerlink" href="#well-enable-vpas-in-place-mode-then" title="Permanent link">&para;</a></h2>
+<p>Two differences remain even with VPA's <code>InPlaceOrRecreate</code> mode enabled:</p>
+<ol>
+<li>It's alpha and feature-gated, and falls back to eviction in situations
+   KubeRA is designed to handle differently: waiting out a cooldown, or
+   flooring a downward resize against HPA headroom instead of evicting.</li>
+<li>The HPA guidance above still applies to it: VPA has no model of how its
+   own request changes affect the utilization HPA observes. KubeRA's HPA
+   coordination (pause-while-scaling, headroom floors) is not something VPA
+   does today, in any mode.</li>
+</ol>
+<p>Separately, VPA has no per-direction step caps, cooldowns, or tolerance
+band on its resizes; these exist in KubeRA to bound how much a single
+resize changes a running pod's resources.</p>
+<h2 id="so-when-should-we-just-use-vpa">"So when should we just use VPA?"<a class="headerlink" href="#so-when-should-we-just-use-vpa" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Workloads without an HPA on CPU/memory, where a pod restart per
+  adjustment is acceptable: VPA is mature and well-established for this.</li>
+<li>StatefulSets, DaemonSets, and Jobs: VPA supports these; KubeRA currently
+  targets Deployments only.</li>
+<li>Workloads where checkpointed recommendation history across restarts
+  matters today: VPA persists its histograms in a CRD; KubeRA's recommender
+  state is in-memory and rebuilds after a controller restart (a checkpoint
+  CRD is on the roadmap, see below).</li>
+<li>Where longer production track record matters more than the differences
+  above: VPA has years of it; KubeRA doesn't yet.</li>
+</ul>
+<p>Running KubeRA in <code>updateMode: "Off"</code> alongside an existing VPA costs
+nothing: it only publishes recommendations to <code>status</code>, and comparing the
+two costs no more than reading both.</p>
+<h2 id="what-kuberas-recommend-only-mode-shows-you">What KubeRA's recommend-only mode shows you<a class="headerlink" href="#what-kuberas-recommend-only-mode-shows-you" title="Permanent link">&para;</a></h2>
+<p>Before touching any Pod, KubeRA computes what it would request and publishes
+that in <code>status.recommendations</code> and in Prometheus metrics
+(<code>kubera_reclaimable_cpu_millicores</code>, <code>kubera_reclaimable_memory_bytes</code>,
+the gap between what's currently requested and what's recommended). Compare
+it against your own workloads directly:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>kubera<span class="w"> </span>diff<span class="w">            </span><span class="c1"># requested vs recommended, workload by workload</span>
 </code></pre></div>
-<h2 id="hpa-coordination-coupled-loop-math">HPA coordination (coupled-loop math)<a class="headerlink" href="#hpa-coordination-coupled-loop-math" title="Permanent link">&para;</a></h2>
-<p>HPA's resource metric is <code>usage / requests</code>: KubeRA changing requests changes
-what HPA sees:</p>
-<ul>
-<li><strong>Up</strong>: raising requests lowers observed utilization; HPA stays quiet.
-  That is the vertical-first gating.</li>
-<li><strong>Down</strong>: lowering requests raises observed utilization. Before any downward
-  resize KubeRA computes the post-resize utilization and floors the new
-  request at <code>usage × 100 / (target − headroom)</code> so HPA is never re-triggered
-  by a KubeRA action.</li>
-<li>While the HPA is actively scaling (<code>desiredReplicas != currentReplicas</code> or
-  a recent <code>lastScaleTime</code>), all vertical actuation pauses.</li>
-<li>When recommendations pin at the configured CPU max, <code>status.hpaState</code>
-  becomes <code>AtMaxVertical</code>: HPA takes over replica scaling.</li>
-</ul>
-<h2 id="in-place-resize-safety">In-place resize safety<a class="headerlink" href="#in-place-resize-safety" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Resizes go through the Pod <code>resize</code> subresource only (1.33+, detected at
-  startup via the discovery API).</li>
-<li>QoS class never changes: BestEffort Pods are skipped, Guaranteed Pods keep
-  requests == limits, Burstable limit/request ratios are preserved.</li>
-<li>Memory limits never decrease in-place (kubelet requires a container restart
-  for that); Guaranteed Pods therefore cannot shrink memory at all.</li>
-<li>Tolerance band (±10%) and per-direction step caps (50% up / 20% down)
-  prevent flapping; per-direction cooldowns (2m up / 10m down) space resizes.</li>
-<li>OOMKilled containers get an immediate 1.5× memory bump that bypasses all
-  of the above (bounded by the configured max).</li>
-<li><code>Infeasible</code> resizes (node too small) are surfaced as a status condition
-  and not retried until topology changes.</li>
-<li><code>InPlaceOrRecreate</code> falls back to eviction (PDB-respecting, one pod per
-  workload per pass) for resizes in-place can never do: Infeasible, or
-  Guaranteed memory shrink. Gated on the pod webhook: replacements must be
-  born with the recommendation or eviction is pointless.</li>
-<li>A cluster-wide token bucket (<code>--max-resizes-per-minute</code>) prevents
-  thundering herds.</li>
-</ul>
-<h2 id="spec-drift-the-pod-webhook">Spec drift &amp; the pod webhook<a class="headerlink" href="#spec-drift-the-pod-webhook" title="Permanent link">&para;</a></h2>
-<p>KubeRA patches Pods, not Deployment templates. New Pods (rollouts, HPA
-scale-out) are born with template values. With <code>--enable-pod-webhook</code>, a
-mutating webhook (failurePolicy=Ignore) injects the current recommendation at
-Pod admission, so new Pods start right-sized. Without it, new Pods are
-re-optimized within a few polling intervals.</p>
-<h2 id="state">State<a class="headerlink" href="#state" title="Permanent link">&para;</a></h2>
-<p>All recommender state (histograms) is in-memory and rebuilds within a few
-polling intervals after a restart. Cooldowns also reset on restart; worst
-case one early resize. Leader election guarantees a single actuator.</p>
+<p>That comparison, on your own cluster with your own workloads, is a more
+useful answer than any general estimate.</p>
+<hr />
+<h1 id="roadmap-predictive-autoscaling">Roadmap: predictive autoscaling<a class="headerlink" href="#roadmap-predictive-autoscaling" title="Permanent link">&para;</a></h1>
+<p>Everything above is reactive: observe usage, then converge toward it. The
+recommender smooths noise but has no model of the future. This is the
+planned direction for changing that: each phase keeps the same CRD and
+actuation guardrails; only the recommender changes.</p>
+<h2 id="phase-1-durable-state-checkpointing">Phase 1: Durable state (checkpointing)<a class="headerlink" href="#phase-1-durable-state-checkpointing" title="Permanent link">&para;</a></h2>
+<p>Persist per-container histograms in a checkpoint CRD, VPA-style, so a
+controller restart doesn't reset recommendation history.</p>
+<h2 id="phase-2-historic-backfill">Phase 2: Historic backfill<a class="headerlink" href="#phase-2-historic-backfill" title="Permanent link">&para;</a></h2>
+<p>Seed histograms from Prometheus range queries
+(<code>container_cpu_usage_seconds_total[30d]</code>) the first time a workload is
+seen, instead of starting from nothing. Requires the already-supported
+<code>--prometheus-url</code>.</p>
+<h2 id="phase-3-seasonality-profiles">Phase 3: Seasonality profiles<a class="headerlink" href="#phase-3-seasonality-profiles" title="Permanent link">&para;</a></h2>
+<p>Maintain per-window histograms (hour-of-day × day-of-week) for workloads
+with cyclical load, and resize ahead of a learned peak instead of reacting
+after it starts. Prospective spec addition:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">prediction</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Seasonal</span><span class="w">          </span><span class="c1"># Off | Seasonal | Forecast</span>
+<span class="w">  </span><span class="nt">preScaleLead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15m</span><span class="w">       </span><span class="c1"># act this far ahead of the learned peak</span>
+</code></pre></div>
+<p>Predictions would still move targets only within the configured min/max
+bounds, through the same step caps and HPA headroom floors described above.</p>
+<h2 id="phase-4-forecasting">Phase 4: Forecasting<a class="headerlink" href="#phase-4-forecasting" title="Permanent link">&para;</a></h2>
+<p>A pluggable prediction path behind the existing recommender interface,
+starting with classical time-series models (Holt-Winters or similar), with
+forecast accuracy scored per workload and a fallback to the reactive
+percentile when a forecast underperforms it.</p>
+<h2 id="phase-5-fleet-level-views">Phase 5: Fleet-level views<a class="headerlink" href="#phase-5-fleet-level-views" title="Permanent link">&para;</a></h2>
+<p>Recommendations today are per-workload. The same underlying data could
+support cluster-level views: which workloads could be co-located, awareness
+of node consolidation, and a what-if projection of applying all current
+recommendations at once.</p>
+<p>These are directional, not committed dates; each phase depends on the
+previous one landing and being useful in practice.</p>
 
 
 

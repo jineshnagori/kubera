@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Kubernetes Resource Allocator — vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
+        <meta name="description" content="Kubernetes Resource Allocator: vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
       
       
       
@@ -287,6 +287,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../why-kubera/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why KubeRA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../installation/" class="md-nav__link">
         
   
@@ -538,7 +565,7 @@
   <a href="#jvm-workload-manage-cpu-only" class="md-nav__link">
     <span class="md-ellipsis">
       
-        JVM workload — manage CPU only
+        JVM workload: manage CPU only
       
     </span>
   </a>
@@ -584,6 +611,33 @@
     
   
     HPA Coordination
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark-hpa-load-test/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark (HPA + Load Test)
   
 
     
@@ -868,7 +922,7 @@
   <a href="#jvm-workload-manage-cpu-only" class="md-nav__link">
     <span class="md-ellipsis">
       
-        JVM workload — manage CPU only
+        JVM workload: manage CPU only
       
     </span>
   </a>
@@ -916,7 +970,7 @@
 · <strong>Scope:</strong> Namespaced · <strong>Short names:</strong> <code>dr</code>, <code>dynres</code></p>
 <p>A <code>DynamicResource</code> is a namespaced policy: it selects Deployments <strong>in its
 own namespace</strong> by label and describes how their Pods' CPU and memory should
-be managed. Selectors never cross namespace boundaries — teams own their
+be managed. Selectors never cross namespace boundaries: teams own their
 policies, and there is no cluster-wide blast radius.</p>
 <h2 id="complete-example">Complete example<a class="headerlink" href="#complete-example" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">autoscaling.kubera.io/v1alpha1</span>
@@ -964,18 +1018,18 @@ policies, and there is no cluster-wide blast radius.</p>
 <h2 id="specselector-required"><code>spec.selector</code> (required)<a class="headerlink" href="#specselector-required" title="Permanent link">&para;</a></h2>
 <p>Label selector matching <strong>Deployments</strong> (their metadata labels) in the same
 namespace. Same model as Services and NetworkPolicies.</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># one workload — use a label unique to it</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># one workload: use a label unique to it</span>
 <span class="nt">selector</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app</span><span class="p">:</span><span class="w"> </span><span class="nv">api</span><span class="w"> </span><span class="p p-Indicator">}</span>
 
-<span class="c1"># a group — shared label, one policy for the team</span>
+<span class="c1"># a group: shared label, one policy for the team</span>
 <span class="nt">selector</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> app.kubernetes.io/part-of</span><span class="p">:</span><span class="w"> </span><span class="nv">payments</span><span class="w"> </span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <p>If two DynamicResources match the same Deployment, the <strong>older one wins</strong>;
 the newer gets condition <code>Conflicted</code> and takes no action. A workload already
 managed by a VerticalPodAutoscaler also produces <code>Conflicted</code>
-(<code>VPAConflict</code>) — KubeRA refuses to fight VPA over the same Pods.</p>
+(<code>VPAConflict</code>): KubeRA refuses to fight VPA over the same Pods.</p>
 <h2 id="specupdatemode"><code>spec.updateMode</code><a class="headerlink" href="#specupdatemode" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -987,7 +1041,7 @@ managed by a VerticalPodAutoscaler also produces <code>Conflicted</code>
 <tbody>
 <tr>
 <td><code>"Off"</code> <em>(default)</em></td>
-<td>Compute and publish recommendations in <code>status</code> only. Pods are never touched. <strong>The adoption path</strong> — run for days, inspect, then switch.</td>
+<td>Compute and publish recommendations in <code>status</code> only. Pods are never touched. <strong>The adoption path</strong>: run for days, inspect, then switch.</td>
 </tr>
 <tr>
 <td><code>InPlaceOnly</code></td>
@@ -995,7 +1049,7 @@ managed by a VerticalPodAutoscaler also produces <code>Conflicted</code>
 </tr>
 <tr>
 <td><code>InPlaceOrRecreate</code></td>
-<td>Like <code>InPlaceOnly</code>, plus: Pods whose resize is <em>impossible</em> in-place (node too small, or a Guaranteed pod that must shrink memory) are <strong>evicted</strong> via the Eviction API — PDB-respecting, at most one pod per workload per pass. <strong>Requires the pod webhook</strong> (<code>webhook.enable=true</code>); without it the replacement would inherit stale template resources, so KubeRA refuses with condition <code>ResizeInfeasible: RecreateRequiresWebhook</code>.</td>
+<td>Like <code>InPlaceOnly</code>, plus: Pods whose resize is <em>impossible</em> in-place (node too small, or a Guaranteed pod that must shrink memory) are <strong>evicted</strong> via the Eviction API, PDB-respecting, at most one pod per workload per pass. <strong>Requires the pod webhook</strong> (<code>webhook.enable=true</code>); without it the replacement would inherit stale template resources, so KubeRA refuses with condition <code>ResizeInfeasible: RecreateRequiresWebhook</code>.</td>
 </tr>
 </tbody>
 </table>
@@ -1008,8 +1062,8 @@ managed by a VerticalPodAutoscaler also produces <code>Conflicted</code>
 via <code>containerOverrides</code>).</p>
 <div class="highlight"><pre><span></span><code><span class="nt">resources</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">cpu</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">250m</span><span class="w">      </span><span class="c1"># floor — never sized below</span>
-<span class="w">    </span><span class="nt">max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000m</span><span class="w">     </span><span class="c1"># ceiling — reaching it signals HPA takeover (AtMaxVertical)</span>
+<span class="w">    </span><span class="nt">min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">250m</span><span class="w">      </span><span class="c1"># floor, never sized below</span>
+<span class="w">    </span><span class="nt">max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2000m</span><span class="w">     </span><span class="c1"># ceiling: reaching it signals HPA takeover (AtMaxVertical)</span>
 <span class="w">  </span><span class="nt">memory</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256Mi</span>
 <span class="w">    </span><span class="nt">max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4Gi</span>
@@ -1045,7 +1099,7 @@ sized from a tiny idle working set OOMKills the container on any spike.
 (VPA applies the same guard with a 250Mi default.)</p>
 </div>
 <h2 id="speccontaineroverrides"><code>spec.containerOverrides</code><a class="headerlink" href="#speccontaineroverrides" title="Permanent link">&para;</a></h2>
-<p>Per-container exceptions. Matches containers by name — including <strong>injected
+<p>Per-container exceptions. Matches containers by name: including <strong>injected
 sidecars</strong> (e.g. <code>istio-proxy</code>) that exist only in Pods, not in the
 Deployment template.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">containerOverrides</span><span class="p">:</span>
@@ -1091,7 +1145,7 @@ recommendations are percentiles over history, not point-in-time reads, plus a
 per pod timestamp.</p>
 <p><strong>Prometheus provider</strong> requires the operator flag <code>--prometheus-url</code> and
 kube-state-metrics in the cluster (pod-label join via <code>kube_pod_labels</code>).
-Only <code>matchLabels</code> selectors are supported with Prometheus —
+Only <code>matchLabels</code> selectors are supported with Prometheus:
 <code>matchExpressions</code> cannot be translated to a PromQL vector match. Without the
 flag, a policy requesting Prometheus gets condition
 <code>Ready: UnsupportedProvider</code>.</p>
@@ -1109,18 +1163,18 @@ flag, a policy requesting Prometheus gets condition
 </code></pre></div>
 <p>Additional built-in guards (not configurable per policy):</p>
 <ul>
-<li><strong>±10% tolerance band</strong> — no resize when the recommendation is within 10%
+<li><strong>±10% tolerance band</strong>: no resize when the recommendation is within 10%
   of the current value (anti-flap).</li>
-<li><strong>QoS preservation</strong> — a Pod's QoS class never changes: BestEffort pods are
+<li><strong>QoS preservation</strong>: a Pod's QoS class never changes: BestEffort pods are
   skipped entirely, Guaranteed keeps requests == limits, Burstable keeps its
   limit/request ratio.</li>
-<li><strong>Memory limits never decrease in-place</strong> — kubelet constraint. On
+<li><strong>Memory limits never decrease in-place</strong>: kubelet constraint. On
   Guaranteed pods memory therefore cannot shrink in-place at all; use
   <code>InPlaceOrRecreate</code> + webhook, or run the workload Burstable.</li>
-<li><strong>OOM fast path</strong> — a container OOMKilled within the last 15 minutes gets
+<li><strong>OOM fast path</strong>: a container OOMKilled within the last 15 minutes gets
   an immediate 1.5× memory bump that bypasses tolerance, step caps and
   cooldowns (capped at <code>memory.max</code>).</li>
-<li><strong>Cluster-wide rate limit</strong> — <code>--max-resizes-per-minute</code> (default 30).</li>
+<li><strong>Cluster-wide rate limit</strong>: <code>--max-resizes-per-minute</code> (default 30).</li>
 </ul>
 <h2 id="spechpa"><code>spec.hpa</code><a class="headerlink" href="#spechpa" title="Permanent link">&para;</a></h2>
 <p>Coordination with an HPA whose <code>scaleTargetRef</code> points at a matched
@@ -1234,7 +1288,7 @@ Deployment. See <a href="../hpa-coordination/">HPA Coordination</a> for the theo
 </table>
 <h3 id="events">Events<a class="headerlink" href="#events" title="Permanent link">&para;</a></h3>
 <p><code>RecommendationUpdated</code>, <code>PodsResized</code>, <code>PodEvictedForResize</code>, <code>OOMFastPath</code>,
-<code>Conflicted</code>, <code>VPAConflict</code> — all on the DynamicResource object
+<code>Conflicted</code>, <code>VPAConflict</code>: all on the DynamicResource object
 (<code>kubectl describe dynamicresource &lt;name&gt;</code>).</p>
 <hr />
 <h2 id="recipes">Recipes<a class="headerlink" href="#recipes" title="Permanent link">&para;</a></h2>
@@ -1264,7 +1318,7 @@ Deployment. See <a href="../hpa-coordination/">HPA Coordination</a> for the theo
 <span class="w">    </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Cooperative</span>
 <span class="w">    </span><span class="nt">reserveHeadroomPercent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">           </span><span class="c1"># extra safety against scale-out flapping</span>
 </code></pre></div>
-<h3 id="jvm-workload-manage-cpu-only">JVM workload — manage CPU only<a class="headerlink" href="#jvm-workload-manage-cpu-only" title="Permanent link">&para;</a></h3>
+<h3 id="jvm-workload-manage-cpu-only">JVM workload: manage CPU only<a class="headerlink" href="#jvm-workload-manage-cpu-only" title="Permanent link">&para;</a></h3>
 <p>Fixed heap (<code>-Xmx</code>) makes memory resize useless upward and lethal downward.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">selector</span><span class="p">:</span>

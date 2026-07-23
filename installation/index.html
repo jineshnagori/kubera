@@ -6,14 +6,14 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Kubernetes Resource Allocator — vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
+        <meta name="description" content="Kubernetes Resource Allocator: vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
       
       
       
         <link rel="canonical" href="https://kubera.jineshnagori.in/installation/">
       
       
-        <link rel="prev" href="..">
+        <link rel="prev" href="../why-kubera/">
       
       
         <link rel="next" href="../dynamicresource/">
@@ -284,6 +284,33 @@
       
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-kubera/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why KubeRA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -405,7 +432,7 @@
   <a href="#first-workload-safe-adoption-path" class="md-nav__link">
     <span class="md-ellipsis">
       
-        First workload — safe adoption path
+        First workload: safe adoption path
       
     </span>
   </a>
@@ -473,6 +500,33 @@
     
   
     HPA Coordination
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark-hpa-load-test/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark (HPA + Load Test)
   
 
     
@@ -651,7 +705,7 @@
   <a href="#first-workload-safe-adoption-path" class="md-nav__link">
     <span class="md-ellipsis">
       
-        First workload — safe adoption path
+        First workload: safe adoption path
       
     </span>
   </a>
@@ -738,7 +792,7 @@ kubectl<span class="w"> </span>-n<span class="w"> </span>kube-system<span class=
 <p>Every release publishes a multi-arch image (amd64 + arm64) and an OCI Helm
 chart:</p>
 <div class="highlight"><pre><span></span><code>helm<span class="w"> </span>install<span class="w"> </span>kubera<span class="w"> </span>oci://ghcr.io/jineshnagori/charts/kubera<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--version<span class="w"> </span><span class="m">0</span>.1.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--version<span class="w"> </span><span class="m">0</span>.1.1<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-n<span class="w"> </span>kubera-system<span class="w"> </span>--create-namespace
 </code></pre></div>
 <p>Verify:</p>
@@ -751,13 +805,13 @@ admission, so replicas created by rollouts or HPA scale-out are born
 right-sized. It is also <strong>required</strong> for <code>updateMode: InPlaceOrRecreate</code>.</p>
 <p>Needs cert-manager installed, then:</p>
 <div class="highlight"><pre><span></span><code>helm<span class="w"> </span>upgrade<span class="w"> </span>kubera<span class="w"> </span>oci://ghcr.io/jineshnagori/charts/kubera<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--version<span class="w"> </span><span class="m">0</span>.1.0<span class="w"> </span>-n<span class="w"> </span>kubera-system<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--version<span class="w"> </span><span class="m">0</span>.1.1<span class="w"> </span>-n<span class="w"> </span>kubera-system<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--set<span class="w"> </span>webhook.enable<span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--set<span class="w"> </span>certmanager.enable<span class="o">=</span><span class="nb">true</span>
 </code></pre></div>
 <p>This deploys the <code>MutatingWebhookConfiguration</code>, webhook Service, serving
 certificate, and passes <code>--enable-pod-webhook</code> to the manager. The webhook
-uses <code>failurePolicy: Ignore</code> — Pod creation is never blocked by KubeRA being
+uses <code>failurePolicy: Ignore</code>: Pod creation is never blocked by KubeRA being
 down.</p>
 <h2 id="operator-flags">Operator flags<a class="headerlink" href="#operator-flags" title="Permanent link">&para;</a></h2>
 <table>
@@ -804,7 +858,7 @@ helm<span class="w"> </span>install<span class="w"> </span>kubera<span class="w"
 <span class="w">  </span>--set<span class="w"> </span>controllerManager.container.image.repository<span class="o">=</span>kubera<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--set<span class="w"> </span>controllerManager.container.image.tag<span class="o">=</span>dev
 </code></pre></div>
-<h2 id="first-workload-safe-adoption-path">First workload — safe adoption path<a class="headerlink" href="#first-workload-safe-adoption-path" title="Permanent link">&para;</a></h2>
+<h2 id="first-workload-safe-adoption-path">First workload: safe adoption path<a class="headerlink" href="#first-workload-safe-adoption-path" title="Permanent link">&para;</a></h2>
 <p><strong>1.</strong> Add <code>resizePolicy</code> to the workload (one-time rollout; without it the
 kubelet restarts containers on resize):</p>
 <div class="highlight"><pre><span></span><code><span class="nt">containers</span><span class="p">:</span>
@@ -835,7 +889,7 @@ kubectl<span class="w"> </span>kubera<span class="w"> </span>diff<span class="w"
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>patch<span class="w"> </span>dynamicresource<span class="w"> </span>api-policy<span class="w"> </span>--type<span class="o">=</span>merge<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-p<span class="w"> </span><span class="s1">&#39;{&quot;spec&quot;:{&quot;updateMode&quot;:&quot;InPlaceOnly&quot;}}&#39;</span>
 </code></pre></div>
-<p>Watch it live — requests converge, <code>RESTARTS</code> stays 0:</p>
+<p>Watch it live: requests converge, <code>RESTARTS</code> stays 0:</p>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-l<span class="w"> </span><span class="nv">app</span><span class="o">=</span>api<span class="w"> </span>-w<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-o<span class="w"> </span>custom-columns<span class="o">=</span><span class="s1">&#39;POD:.metadata.name,CPU:.spec.containers[0].resources.requests.cpu,MEM:.spec.containers[0].resources.requests.memory,RESTARTS:.status.containerStatuses[0].restartCount&#39;</span>
 </code></pre></div>

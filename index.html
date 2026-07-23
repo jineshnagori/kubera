@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Kubernetes Resource Allocator — vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
+        <meta name="description" content="Kubernetes Resource Allocator: vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
       
       
       
@@ -14,7 +14,7 @@
       
       
       
-        <link rel="next" href="installation/">
+        <link rel="next" href="why-kubera/">
       
       
         
@@ -365,6 +365,33 @@
   
   
     <li class="md-nav__item">
+      <a href="why-kubera/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why KubeRA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="installation/" class="md-nav__link">
         
   
@@ -427,6 +454,33 @@
     
   
     HPA Coordination
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="benchmark-hpa-load-test/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark (HPA + Load Test)
   
 
     
@@ -599,10 +653,10 @@
   
 
 
-<h1 id="kubera-kubernetes-resource-allocator">KubeRA — Kubernetes Resource Allocator<a class="headerlink" href="#kubera-kubernetes-resource-allocator" title="Permanent link">&para;</a></h1>
+<h1 id="kubera-kubernetes-resource-allocator">KubeRA: Kubernetes Resource Allocator<a class="headerlink" href="#kubera-kubernetes-resource-allocator" title="Permanent link">&para;</a></h1>
 <p><strong>Vertical-first, horizontal-second autoscaling.</strong> KubeRA continuously
-right-sizes Pod CPU and memory using Kubernetes <strong>in-place Pod resize</strong> — no
-restarts — and cooperates with the Horizontal Pod Autoscaler instead of
+right-sizes Pod CPU and memory using Kubernetes <strong>in-place Pod resize</strong>
+(no restarts) and cooperates with the Horizontal Pod Autoscaler instead of
 fighting it.</p>
 <div class="highlight"><pre><span></span><code>Traffic rises
   → KubeRA grows Pod resources in place (no restart, no new replicas)
@@ -621,7 +675,7 @@ Traffic falls
 <p>The scheduler reserves what is requested, not what is used. The result is
 half-empty nodes and a cloud bill for idle capacity. Under-provisioning is
 worse: throttling and OOMKills.</p>
-<p>KubeRA moves every workload toward its real usage — fewer nodes at higher
+<p>KubeRA moves every workload toward its real usage: fewer nodes at higher
 utilization, without sacrificing performance.</p>
 <h2 id="how-it-differs-from-vpa">How it differs from VPA<a class="headerlink" href="#how-it-differs-from-vpa" title="Permanent link">&para;</a></h2>
 <table>
@@ -641,7 +695,7 @@ utilization, without sacrificing performance.</p>
 <tr>
 <td>HPA on CPU/memory</td>
 <td>Explicitly forbidden</td>
-<td><strong>Designed for it</strong> — coupled-loop math keeps HPA stable</td>
+<td><strong>Designed for it</strong>: coupled-loop math keeps HPA stable</td>
 </tr>
 <tr>
 <td>Adoption path</td>
@@ -657,7 +711,7 @@ utilization, without sacrificing performance.</p>
 </table>
 <h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>helm<span class="w"> </span>install<span class="w"> </span>kubera<span class="w"> </span>oci://ghcr.io/jineshnagori/charts/kubera<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--version<span class="w"> </span><span class="m">0</span>.1.0<span class="w"> </span>-n<span class="w"> </span>kubera-system<span class="w"> </span>--create-namespace
+<span class="w">  </span>--version<span class="w"> </span><span class="m">0</span>.1.1<span class="w"> </span>-n<span class="w"> </span>kubera-system<span class="w"> </span>--create-namespace
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">autoscaling.kubera.io/v1alpha1</span>
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DynamicResource</span>

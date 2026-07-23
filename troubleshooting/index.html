@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Kubernetes Resource Allocator — vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
+        <meta name="description" content="Kubernetes Resource Allocator: vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
       
       
       
@@ -285,6 +285,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../why-kubera/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why KubeRA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../installation/" class="md-nav__link">
         
   
@@ -347,6 +374,33 @@
     
   
     HPA Coordination
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark-hpa-load-test/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark (HPA + Load Test)
   
 
     
@@ -739,11 +793,11 @@ kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </
 </code></pre></div>
 <h2 id="no-recommendations-appear">No recommendations appear<a class="headerlink" href="#no-recommendations-appear" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Metrics Server missing or unready</strong> — <code>kubectl top pods</code> must work.
+<li><strong>Metrics Server missing or unready</strong>: <code>kubectl top pods</code> must work.
   Condition <code>Ready: MetricsUnavailable</code> confirms.</li>
-<li><strong>Selector mismatch</strong> — condition <code>Ready: NoMatch</code>. The selector matches
+<li><strong>Selector mismatch</strong>: condition <code>Ready: NoMatch</code>. The selector matches
   <strong>Deployment labels</strong> (metadata), not Pod labels. Same namespace only.</li>
-<li><strong>Fresh pods</strong> — metrics-server needs ~60s to report new Pods; during the
+<li><strong>Fresh pods</strong>: metrics-server needs ~60s to report new Pods; during the
   gap KubeRA keeps the last known recommendations.</li>
 </ul>
 <h2 id="recommendations-exist-but-pods-dont-resize">Recommendations exist but Pods don't resize<a class="headerlink" href="#recommendations-exist-but-pods-dont-resize" title="Permanent link">&para;</a></h2>
@@ -788,7 +842,7 @@ kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </
 </tr>
 <tr>
 <td>BestEffort Pods never touched</td>
-<td>Adding requests would change QoS class — forbidden in-place</td>
+<td>Adding requests would change QoS class, forbidden in-place</td>
 <td>Set initial requests in the template</td>
 </tr>
 </tbody>
@@ -798,17 +852,17 @@ kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>get<span class="w"> </span>pod<span class="w"> </span>&lt;pod&gt;<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.status.qosClass}&#39;</span>
 </code></pre></div>
 <p><strong><code>Guaranteed</code></strong> (requests == limits): the kubelet forbids in-place memory
-<em>limit</em> decrease, and Guaranteed pins limit to request — memory cannot shrink
+<em>limit</em> decrease, and Guaranteed pins limit to request; memory cannot shrink
 in-place at all. Options:</p>
 <ol>
-<li>Run the workload <strong>Burstable</strong> (memory limit &gt; request) — requests then
+<li>Run the workload <strong>Burstable</strong> (memory limit &gt; request): requests then
    shrink freely, the limit stays.</li>
-<li><code>updateMode: InPlaceOrRecreate</code> + webhook — Pods are evicted one at a
+<li><code>updateMode: InPlaceOrRecreate</code> + webhook: Pods are evicted one at a
    time and replacements start right-sized.</li>
 </ol>
 <h2 id="resizeinfeasible-recreaterequireswebhook"><code>ResizeInfeasible: RecreateRequiresWebhook</code><a class="headerlink" href="#resizeinfeasible-recreaterequireswebhook" title="Permanent link">&para;</a></h2>
 <p><code>InPlaceOrRecreate</code> wants to evict, but the pod webhook is disabled.
-Recreating without it is pointless — the replacement inherits the stale
+Recreating without it is pointless: the replacement inherits the stale
 template resources. Enable:</p>
 <div class="highlight"><pre><span></span><code>helm<span class="w"> </span>upgrade<span class="w"> </span>kubera<span class="w"> </span>...<span class="w"> </span>--set<span class="w"> </span>webhook.enable<span class="o">=</span><span class="nb">true</span><span class="w"> </span>--set<span class="w"> </span>certmanager.enable<span class="o">=</span><span class="nb">true</span>
 </code></pre></div>
@@ -816,7 +870,7 @@ template resources. Enable:</p>
 <h2 id="manager-crash-loops-open-tmpk8s-webhook-serverserving-certstlscrt">Manager crash-loops: <code>open /tmp/k8s-webhook-server/serving-certs/tls.crt</code><a class="headerlink" href="#manager-crash-loops-open-tmpk8s-webhook-serverserving-certstlscrt" title="Permanent link">&para;</a></h2>
 <p>Webhook flag on but serving certificate absent. Both <code>webhook.enable=true</code>
 <strong>and</strong> <code>certmanager.enable=true</code> are required, and cert-manager takes a few
-seconds to issue on first install — one pod restart during that window is
+seconds to issue on first install; one pod restart during that window is
 normal.</p>
 <h2 id="eventsk8sio-is-forbidden-in-logs"><code>events.k8s.io is forbidden</code> in logs<a class="headerlink" href="#eventsk8sio-is-forbidden-in-logs" title="Permanent link">&para;</a></h2>
 <p>RBAC from a chart older than v0.1.1. Upgrade the chart; the role needs
@@ -826,7 +880,7 @@ normal.</p>
 <strong>32Mi</strong> regardless of <code>spec.resources.memory.min</code>, precisely because on
 Guaranteed pods the recommendation becomes the memory limit. If you see it:</p>
 <ul>
-<li>Check for an <code>OOMFastPath</code> event — KubeRA bumps memory 1.5× immediately
+<li>Check for an <code>OOMFastPath</code> event: KubeRA bumps memory 1.5× immediately
   after an OOMKill, bypassing cooldowns.</li>
 <li>Raise <code>memory.min</code> to an honest baseline for the workload.</li>
 <li>JVM/fixed-heap workloads: pin memory (<code>min == max</code>) and let KubeRA manage
@@ -838,14 +892,14 @@ Guaranteed pods the recommendation becomes the memory limit. If you see it:</p>
   <code>Ready: UnsupportedProvider</code>.</li>
 <li>kube-state-metrics must be scraped (the pod-label join uses
   <code>kube_pod_labels</code>).</li>
-<li>Only <code>matchLabels</code> selectors work with Prometheus — <code>matchExpressions</code>
+<li>Only <code>matchLabels</code> selectors work with Prometheus: <code>matchExpressions</code>
   cannot be expressed in the PromQL join.</li>
 </ul>
 <h2 id="two-policies-fighting">Two policies fighting<a class="headerlink" href="#two-policies-fighting" title="Permanent link">&para;</a></h2>
-<p>Condition <code>Conflicted: OverlappingSelector</code> — two DynamicResources match the
+<p>Condition <code>Conflicted: OverlappingSelector</code>: two DynamicResources match the
 same Deployment. Oldest wins; the newer takes no action. Tighten the
 selectors.</p>
-<p><code>Conflicted: VPAConflict</code> — a VerticalPodAutoscaler targets the workload.
+<p><code>Conflicted: VPAConflict</code>: a VerticalPodAutoscaler targets the workload.
 Remove one of the two; KubeRA will not fight VPA over the same Pods.</p>
 
 

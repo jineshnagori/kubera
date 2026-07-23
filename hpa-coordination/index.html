@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Kubernetes Resource Allocator — vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
+        <meta name="description" content="Kubernetes Resource Allocator: vertical-first, HPA-cooperative autoscaling with in-place Pod resize">
       
       
       
@@ -16,7 +16,7 @@
         <link rel="prev" href="../dynamicresource/">
       
       
-        <link rel="next" href="../architecture/">
+        <link rel="next" href="../benchmark-hpa-load-test/">
       
       
         
@@ -287,6 +287,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../why-kubera/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why KubeRA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../installation/" class="md-nav__link">
         
   
@@ -470,6 +497,33 @@
   
 </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark-hpa-load-test/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmark (HPA + Load Test)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -668,7 +722,7 @@
 
 
 <h1 id="hpa-coordination">HPA Coordination<a class="headerlink" href="#hpa-coordination" title="Permanent link">&para;</a></h1>
-<p>KubeRA does not replace the HPA — it delays HPA activation by scaling Pods
+<p>KubeRA does not replace the HPA; it delays HPA activation by scaling Pods
 vertically first, and it is careful never to destabilize the HPA's control
 loop. This page explains the mechanics.</p>
 <h2 id="the-coupled-loop-problem">The coupled-loop problem<a class="headerlink" href="#the-coupled-loop-problem" title="Permanent link">&para;</a></h2>
@@ -677,10 +731,10 @@ loop. This page explains the mechanics.</p>
 </code></pre></div>
 <p>KubeRA changes <code>requests</code>, so <strong>every resize changes what the HPA sees</strong>:</p>
 <ul>
-<li><strong>Raising requests lowers observed utilization</strong> — the HPA backs off. This
+<li><strong>Raising requests lowers observed utilization</strong>: the HPA backs off. This
   is the vertical-first gating, and it is intentional: as long as a Pod can
   grow, replica count stays flat.</li>
-<li><strong>Lowering requests raises observed utilization</strong> — done naively, shrinking
+<li><strong>Lowering requests raises observed utilization</strong>: done naively, shrinking
   resources after a traffic drop makes the HPA scale <strong>out</strong>: traffic falls,
   requests shrink, HPA sees 95% utilization, adds replicas, per-pod usage
   falls further, requests shrink again… a runaway oscillation. This is
@@ -696,15 +750,15 @@ floored at:</p>
 <ul>
 <li>Raw recommendation: ~150m (P90 × 1.1 margin).</li>
 <li>Floor: <code>130 × 100 / (75 − 10)</code> = <strong>200m</strong>. At a 200m request the HPA
-  observes 65% — safely under its 75% target.</li>
+  observes 65%, safely under its 75% target.</li>
 <li>KubeRA resizes to 200m, not 150m. The HPA never fires.</li>
 </ul>
 <p>The floor applies per resource: CPU and memory targets are floored
 independently when the HPA has a utilization target for them (both
 <code>Resource</code> and <code>containerResource</code> metric types are read).</p>
 <h2 id="pause-while-scaling">Pause while scaling<a class="headerlink" href="#pause-while-scaling" title="Permanent link">&para;</a></h2>
-<p>While the HPA is actively scaling — <code>status.desiredReplicas !=
-status.currentReplicas</code>, or <code>lastScaleTime</code> within <code>cooldownAfterHPA</code> — all
+<p>While the HPA is actively scaling (<code>status.desiredReplicas !=
+status.currentReplicas</code>, or <code>lastScaleTime</code> within <code>cooldownAfterHPA</code>), all
 vertical actuation for that workload pauses and <code>status.hpaState</code> reports
 <code>Scaling</code>. Two controllers changing Pod resources and replica counts at the
 same moment is how you get feedback loops; one at a time.</p>
@@ -712,7 +766,7 @@ same moment is how you get feedback loops; one at a time.</p>
 <p>When a workload's CPU recommendation pins at <code>resources.cpu.max</code> and demand
 continues, <code>status.hpaState</code> becomes <code>AtMaxVertical</code>. Vertical scaling is
 exhausted; replica scaling is the correct next move, and the HPA does it
-naturally — Pods at max requests under sustained load show high utilization,
+naturally: Pods at max requests under sustained load show high utilization,
 which is precisely the HPA's trigger.</p>
 <div class="highlight"><pre><span></span><code>2 Pods @ 500m  →  2 Pods @ 2000m (max)  →  HPA: 3, 4, 5 replicas
 traffic drops  →  HPA: back to 2        →  KubeRA: 2000m → … → baseline
@@ -743,7 +797,7 @@ traffic drops  →  HPA: back to 2        →  KubeRA: 2000m → … → baselin
 </table>
 <h2 id="best-practice-decouple-when-you-can">Best practice: decouple when you can<a class="headerlink" href="#best-practice-decouple-when-you-can" title="Permanent link">&para;</a></h2>
 <p>The cleanest setup puts the HPA on <strong>custom or external metrics</strong> (requests
-per second, queue depth, latency). Then the loops are fully independent —
+per second, queue depth, latency). Then the loops are fully independent:
 KubeRA owns resources, HPA owns replicas, and neither observes the other.
 Set <code>hpa.mode: Ignore</code> in that case to skip the coordination overhead.</p>
 <p>For resource-metric HPAs, <code>Cooperative</code> mode (the default) applies the
