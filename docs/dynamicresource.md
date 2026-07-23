@@ -5,7 +5,7 @@
 
 A `DynamicResource` is a namespaced policy: it selects Deployments **in its
 own namespace** by label and describes how their Pods' CPU and memory should
-be managed. Selectors never cross namespace boundaries — teams own their
+be managed. Selectors never cross namespace boundaries: teams own their
 policies, and there is no cluster-wide blast radius.
 
 ## Complete example
@@ -61,11 +61,11 @@ Label selector matching **Deployments** (their metadata labels) in the same
 namespace. Same model as Services and NetworkPolicies.
 
 ```yaml
-# one workload — use a label unique to it
+# one workload: use a label unique to it
 selector:
   matchLabels: { app: api }
 
-# a group — shared label, one policy for the team
+# a group: shared label, one policy for the team
 selector:
   matchLabels: { app.kubernetes.io/part-of: payments }
 ```
@@ -73,15 +73,15 @@ selector:
 If two DynamicResources match the same Deployment, the **older one wins**;
 the newer gets condition `Conflicted` and takes no action. A workload already
 managed by a VerticalPodAutoscaler also produces `Conflicted`
-(`VPAConflict`) — KubeRA refuses to fight VPA over the same Pods.
+(`VPAConflict`): KubeRA refuses to fight VPA over the same Pods.
 
 ## `spec.updateMode`
 
 | Value | Behaviour |
 |-------|-----------|
-| `"Off"` *(default)* | Compute and publish recommendations in `status` only. Pods are never touched. **The adoption path** — run for days, inspect, then switch. |
+| `"Off"` *(default)* | Compute and publish recommendations in `status` only. Pods are never touched. **The adoption path**: run for days, inspect, then switch. |
 | `InPlaceOnly` | Apply recommendations via the Pod `resize` subresource. Resizes that cannot happen in-place are skipped and surfaced in conditions. |
-| `InPlaceOrRecreate` | Like `InPlaceOnly`, plus: Pods whose resize is *impossible* in-place (node too small, or a Guaranteed pod that must shrink memory) are **evicted** via the Eviction API — PDB-respecting, at most one pod per workload per pass. **Requires the pod webhook** (`webhook.enable=true`); without it the replacement would inherit stale template resources, so KubeRA refuses with condition `ResizeInfeasible: RecreateRequiresWebhook`. |
+| `InPlaceOrRecreate` | Like `InPlaceOnly`, plus: Pods whose resize is *impossible* in-place (node too small, or a Guaranteed pod that must shrink memory) are **evicted** via the Eviction API, PDB-respecting, at most one pod per workload per pass. **Requires the pod webhook** (`webhook.enable=true`); without it the replacement would inherit stale template resources, so KubeRA refuses with condition `ResizeInfeasible: RecreateRequiresWebhook`. |
 
 !!! warning "Quote `\"Off\"` in YAML"
     Bare `Off` is YAML 1.1 boolean `false`. Always write `updateMode: "Off"`.
@@ -94,8 +94,8 @@ via `containerOverrides`).
 ```yaml
 resources:
   cpu:
-    min: 250m      # floor — never sized below
-    max: 2000m     # ceiling — reaching it signals HPA takeover (AtMaxVertical)
+    min: 250m      # floor, never sized below
+    max: 2000m     # ceiling: reaching it signals HPA takeover (AtMaxVertical)
   memory:
     min: 256Mi
     max: 4Gi
@@ -116,7 +116,7 @@ resources:
 
 ## `spec.containerOverrides`
 
-Per-container exceptions. Matches containers by name — including **injected
+Per-container exceptions. Matches containers by name: including **injected
 sidecars** (e.g. `istio-proxy`) that exist only in Pods, not in the
 Deployment template.
 
@@ -153,7 +153,7 @@ per pod timestamp.
 
 **Prometheus provider** requires the operator flag `--prometheus-url` and
 kube-state-metrics in the cluster (pod-label join via `kube_pod_labels`).
-Only `matchLabels` selectors are supported with Prometheus —
+Only `matchLabels` selectors are supported with Prometheus:
 `matchExpressions` cannot be translated to a PromQL vector match. Without the
 flag, a policy requesting Prometheus gets condition
 `Ready: UnsupportedProvider`.
@@ -176,18 +176,18 @@ behavior:
 
 Additional built-in guards (not configurable per policy):
 
-- **±10% tolerance band** — no resize when the recommendation is within 10%
+- **±10% tolerance band**: no resize when the recommendation is within 10%
   of the current value (anti-flap).
-- **QoS preservation** — a Pod's QoS class never changes: BestEffort pods are
+- **QoS preservation**: a Pod's QoS class never changes: BestEffort pods are
   skipped entirely, Guaranteed keeps requests == limits, Burstable keeps its
   limit/request ratio.
-- **Memory limits never decrease in-place** — kubelet constraint. On
+- **Memory limits never decrease in-place**: kubelet constraint. On
   Guaranteed pods memory therefore cannot shrink in-place at all; use
   `InPlaceOrRecreate` + webhook, or run the workload Burstable.
-- **OOM fast path** — a container OOMKilled within the last 15 minutes gets
+- **OOM fast path**: a container OOMKilled within the last 15 minutes gets
   an immediate 1.5× memory bump that bypasses tolerance, step caps and
   cooldowns (capped at `memory.max`).
-- **Cluster-wide rate limit** — `--max-resizes-per-minute` (default 30).
+- **Cluster-wide rate limit**: `--max-resizes-per-minute` (default 30).
 
 ## `spec.hpa`
 
@@ -247,7 +247,7 @@ status:
 ### Events
 
 `RecommendationUpdated`, `PodsResized`, `PodEvictedForResize`, `OOMFastPath`,
-`Conflicted`, `VPAConflict` — all on the DynamicResource object
+`Conflicted`, `VPAConflict`: all on the DynamicResource object
 (`kubectl describe dynamicresource <name>`).
 
 ---
@@ -286,7 +286,7 @@ spec:
     reserveHeadroomPercent: 15           # extra safety against scale-out flapping
 ```
 
-### JVM workload — manage CPU only
+### JVM workload: manage CPU only
 
 Fixed heap (`-Xmx`) makes memory resize useless upward and lethal downward.
 

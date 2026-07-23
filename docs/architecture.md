@@ -19,7 +19,7 @@ Reconcile(DynamicResource)
 
 ## HPA coordination (coupled-loop math)
 
-HPA's resource metric is `usage / requests` — KubeRA changing requests changes
+HPA's resource metric is `usage / requests`: KubeRA changing requests changes
 what HPA sees:
 
 - **Up**: raising requests lowers observed utilization; HPA stays quiet.
@@ -48,7 +48,7 @@ what HPA sees:
 - `Infeasible` resizes (node too small) are surfaced as a status condition
   and not retried until topology changes.
 - `InPlaceOrRecreate` falls back to eviction (PDB-respecting, one pod per
-  workload per pass) for resizes in-place can never do — Infeasible, or
+  workload per pass) for resizes in-place can never do: Infeasible, or
   Guaranteed memory shrink. Gated on the pod webhook: replacements must be
   born with the recommendation or eviction is pointless.
 - A cluster-wide token bucket (`--max-resizes-per-minute`) prevents
@@ -65,5 +65,5 @@ re-optimized within a few polling intervals.
 ## State
 
 All recommender state (histograms) is in-memory and rebuilds within a few
-polling intervals after a restart. Cooldowns also reset on restart — worst
+polling intervals after a restart. Cooldowns also reset on restart; worst
 case one early resize. Leader election guarantees a single actuator.

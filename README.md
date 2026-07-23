@@ -1,4 +1,4 @@
-# KubeRA — Kubernetes Resource Allocator
+# KubeRA: Kubernetes Resource Allocator
 
 ## Vision
 
@@ -16,6 +16,11 @@ This creates a **Vertical-first, Horizontal-second** autoscaling model that
 maximizes node utilization and minimizes infrastructure cost.
 
 ### How KubeRA differs from VPA
+
+**The one-line answer:** VPA right-sizes workloads that tolerate restarts and
+don't run HPA on CPU/memory; KubeRA right-sizes the rest: in place,
+restart-free, HPA-aware. Full objection-by-objection comparison and the
+predictive-autoscaling roadmap: [Why KubeRA](https://kubera.jineshnagori.in/why-kubera/).
 
 VPA has an in-place mode (alpha), but it is explicitly incompatible with HPA on
 CPU/Memory metrics. KubeRA's differentiation is its **HPA cooperation engine**:
@@ -56,7 +61,7 @@ percentage HPA sees) and makes resize decisions that never destabilize HPA.
 
 ## Core Responsibilities
 
-- Monitor CPU and Memory utilization (percentile-based, decaying histograms —
+- Monitor CPU and Memory utilization (percentile-based, decaying histograms,
   not point-in-time reads).
 - Dynamically adjust Pod requests/limits per container.
 - Use In-place Pod Resize (`resize` subresource, Kubernetes 1.33+) whenever
@@ -80,7 +85,7 @@ RBAC stays simple, and there is no cluster-wide blast radius.
 
 ### Targeting
 
-A `DynamicResource` selects workloads with a **label selector** — the same
+A `DynamicResource` selects workloads with a **label selector**: the same
 model as Services and NetworkPolicies. It matches Deployments **in its own
 namespace only**; selectors never cross namespace boundaries.
 
@@ -90,7 +95,22 @@ namespace only**; selectors never cross namespace boundaries.
 If two `DynamicResource` objects match the same workload, the newer one gets a
 `Conflicted` status condition and does not act; the older one wins.
 
-### Example — single workload
+### Example: full end-to-end demo (Deployment + Service + HPA + DynamicResource)
+
+A complete, runnable manifest (CPU-load-generating Deployment, Service, HPA,
+and a `DynamicResource` wired for the vertical-first-then-horizontal
+storyline) lives at [`examples/demo.yml`](examples/demo.yml):
+
+```sh
+kubectl apply -f examples/demo.yml
+```
+
+It includes the load-test command and watch commands as comments in the
+file. See
+[the benchmark methodology](https://kubera.jineshnagori.in/benchmark-hpa-load-test/)
+for how to measure the results on your own cluster.
+
+For just the `DynamicResource` fields, single workload:
 
 ```yaml
 apiVersion: autoscaling.kubera.io/v1alpha1
@@ -137,7 +157,7 @@ spec:
     cooldownAfterHPA: 10m
 ```
 
-### Example — multiple workloads (shared label, same namespace)
+### Example: multiple workloads (shared label, same namespace)
 
 ```yaml
 apiVersion: autoscaling.kubera.io/v1alpha1
@@ -166,7 +186,7 @@ status:
   matchedWorkloads:              # workloads resolved from selector
   - name: api
     kind: Deployment
-  recommendation:                # per container — published even in Off mode
+  recommendation:                # per container, published even in Off mode
     api:
       cpu: 480m
       memory: 610Mi
@@ -177,20 +197,20 @@ status:
 
 Key design points:
 
-- **`updateMode: Off` (recommend-only)** — KubeRA computes and publishes
+- **`updateMode: Off` (recommend-only)**: KubeRA computes and publishes
   recommendations in `status` without touching Pods. Run it for weeks in
   dry-run before trusting actuation. This is the default adoption path.
-- **Flat `resources` block, optional `containerOverrides`** — the common case
+- **Flat `resources` block, optional `containerOverrides`**: the common case
   stays clean; sidecars are excluded or bounded independently when needed.
-- **`behavior` block mirrors HPA UX** — stabilization windows, step limits and
+- **`behavior` block mirrors HPA UX**: stabilization windows, step limits and
   cooldowns per direction; asymmetric on purpose (scale up fast, down slow).
-- **Percentile-based recommendations** — P90 CPU, P95 memory by default.
+- **Percentile-based recommendations**: P90 CPU, P95 memory by default.
 
 ---
 
 ## HPA Coordination (Key Feature)
 
-KubeRA does **not replace HPA** — it delays HPA activation by vertically
+KubeRA does **not replace HPA**; it delays HPA activation by vertically
 scaling Pods first, and it is careful never to destabilize HPA's control loop.
 
 ### The coupled-loop problem
@@ -198,9 +218,9 @@ scaling Pods first, and it is careful never to destabilize HPA's control loop.
 HPA computes resource utilization as `usage / requests`. KubeRA changes
 requests, so every resize changes what HPA sees:
 
-- **Raising requests lowers utilization %** — HPA backs off. This is the
+- **Raising requests lowers utilization %**: HPA backs off. This is the
   vertical-first gating mechanism, and it is intentional.
-- **Lowering requests raises utilization %** — done naively, shrinking
+- **Lowering requests raises utilization %**: done naively, shrinking
   resources after a traffic drop would make HPA scale *out*, causing a runaway
   oscillation (the exact reason VPA + HPA on the same metric is forbidden).
 
@@ -243,20 +263,20 @@ Kubernetes 1.33+ realities KubeRA is designed around:
   beta and on by default in 1.33).
 - **Memory limit decrease** requires `resizePolicy: RestartContainer`;
   disallowed for `NotRequired`. CPU decrease is fine.
-- **QoS class is immutable** — resize math always preserves the Pod's original
+- **QoS class is immutable**: resize math always preserves the Pod's original
   QoS class (Guaranteed stays requests == limits).
 - Resizes can be **`Deferred`** (retried with backoff) or **`Infeasible`**
-  (node too small — surfaced as a status condition; optional fallback to
+  (node too small, surfaced as a status condition; optional fallback to
   evict-and-recreate, which also wakes the cluster autoscaler).
 - **`updateMode: InPlaceOrRecreate`** evicts pods (via the Eviction API,
   respecting PodDisruptionBudgets, one pod per workload per pass) when a
-  resize is impossible in-place — an Infeasible resize, or a Guaranteed pod
+  resize is impossible in-place: an Infeasible resize, or a Guaranteed pod
   that must shrink memory. Requires `--enable-pod-webhook`: the webhook
   injects the recommendation into the replacement pod; without it the
   replacement would inherit the stale template resources, so KubeRA refuses
   and sets condition `ResizeInfeasible: RecreateRequiresWebhook`.
-- Containers need `resizePolicy` set — a **one-time rollout at onboarding**.
-- **OOMKill fast path** — on OOM, memory is bumped immediately, bypassing
+- Containers need `resizePolicy` set: a **one-time rollout at onboarding**.
+- **OOMKill fast path**: on OOM, memory is bumped immediately, bypassing
   cooldowns.
 - Memory shrink only with a wide margin over P99 working set; runtimes with
   fixed heaps (JVM `-Xmx`) should opt out per container.
@@ -309,7 +329,7 @@ charts/kubera/           Helm chart
 
 ### Prerequisites
 
-- Kubernetes **1.33+** — in-place resize needs the Pod `resize` subresource
+- Kubernetes **1.33+**: in-place resize needs the Pod `resize` subresource
   (`kubectl version` to check the server). On older clusters KubeRA still
   runs in recommend-only mode and reports `ResizeInfeasible: ClusterUnsupported`.
 - **Metrics Server** installed (most managed clusters ship it; kind does not):
@@ -320,15 +340,20 @@ charts/kubera/           Helm chart
   kubectl -n kube-system patch deployment metrics-server --type=json \
     -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
   ```
+- **Cert manager** installed (optional):
+
+  ```sh
+  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.21.0/cert-manager.yaml
+  ```
 
 ### 1. Install from the GitHub registry (recommended)
 
 Every tagged release publishes a multi-arch image (amd64 + arm64) and an OCI
-Helm chart to GitHub Container Registry — nothing to build locally:
+Helm chart to GitHub Container Registry; nothing to build locally:
 
 ```sh
 helm install kubera oci://ghcr.io/jineshnagori/charts/kubera \
-  --version 0.1.0 \
+  --version 0.1.1 \
   -n kubera-system --create-namespace
 ```
 
@@ -425,7 +450,7 @@ kubectl get pods -l app=demo-api \
 ```
 
 Requests step down toward usage (max 20%/step, 10m cooldown between
-down-steps) with **RESTARTS staying 0** — that is the in-place resize.
+down-steps) with **RESTARTS staying 0**; that is the in-place resize.
 Events tell the story:
 
 ```sh

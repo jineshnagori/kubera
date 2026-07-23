@@ -1,8 +1,8 @@
-# KubeRA — Kubernetes Resource Allocator
+# KubeRA: Kubernetes Resource Allocator
 
 **Vertical-first, horizontal-second autoscaling.** KubeRA continuously
-right-sizes Pod CPU and memory using Kubernetes **in-place Pod resize** — no
-restarts — and cooperates with the Horizontal Pod Autoscaler instead of
+right-sizes Pod CPU and memory using Kubernetes **in-place Pod resize**
+(no restarts) and cooperates with the Horizontal Pod Autoscaler instead of
 fighting it.
 
 ```text
@@ -29,7 +29,7 @@ The scheduler reserves what is requested, not what is used. The result is
 half-empty nodes and a cloud bill for idle capacity. Under-provisioning is
 worse: throttling and OOMKills.
 
-KubeRA moves every workload toward its real usage — fewer nodes at higher
+KubeRA moves every workload toward its real usage: fewer nodes at higher
 utilization, without sacrificing performance.
 
 ## How it differs from VPA
@@ -37,7 +37,7 @@ utilization, without sacrificing performance.
 | | VPA | KubeRA |
 |---|-----|--------|
 | Resize method | Evict-and-recreate (in-place is alpha) | **In-place first**, eviction only as opt-in fallback |
-| HPA on CPU/memory | Explicitly forbidden | **Designed for it** — coupled-loop math keeps HPA stable |
+| HPA on CPU/memory | Explicitly forbidden | **Designed for it**: coupled-loop math keeps HPA stable |
 | Adoption path | `updateMode: Off` | Same, plus `kubectl kubera diff` and cost metrics |
 | Sidecars | containerPolicies | `containerOverrides`, injected sidecars included |
 
@@ -45,7 +45,7 @@ utilization, without sacrificing performance.
 
 ```sh
 helm install kubera oci://ghcr.io/jineshnagori/charts/kubera \
-  --version 0.1.0 -n kubera-system --create-namespace
+  --version 0.1.1 -n kubera-system --create-namespace
 ```
 
 ```yaml

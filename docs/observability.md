@@ -4,13 +4,13 @@
 
 Exposed on the manager's metrics endpoint (`:8443`, authenticated by
 default). Recommendation gauges are published in **every** updateMode
-including `"Off"` — cost visibility before any actuation.
+including `"Off"`: cost visibility before any actuation.
 
 | Metric | Type | Labels | Meaning |
 |--------|------|--------|---------|
 | `kubera_recommended_cpu_millicores` | gauge | namespace, dynamicresource, workload, container | Current recommended CPU request |
 | `kubera_recommended_memory_bytes` | gauge | namespace, dynamicresource, workload, container | Current recommended memory request |
-| `kubera_reclaimable_cpu_millicores` | gauge | namespace, dynamicresource, workload | CPU requested by running Pods **above** the recommendation — direct savings input |
+| `kubera_reclaimable_cpu_millicores` | gauge | namespace, dynamicresource, workload | CPU requested by running Pods **above** the recommendation: direct savings input |
 | `kubera_reclaimable_memory_bytes` | gauge | namespace, dynamicresource, workload | Same for memory |
 | `kubera_pod_resizes_total` | counter | namespace, workload, direction | In-place resizes (and recreates) performed |
 
